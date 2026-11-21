@@ -756,7 +756,11 @@ fn research_engine_descriptor() -> EngineDescriptor {
         capabilities: vec![
             Capability {
                 id: RESEARCH_CAPABILITY_ID.to_owned(),
-                operations: vec!["plan".to_owned(), "validate_graph".to_owned(), "topological_order".to_owned()],
+                operations: vec![
+                    "plan".to_owned(),
+                    "validate_graph".to_owned(),
+                    "topological_order".to_owned(),
+                ],
                 input_contract_version: "1".to_owned(),
                 output_contract_version: "1".to_owned(),
                 constraints: BTreeMap::from([
@@ -771,7 +775,10 @@ fn research_engine_descriptor() -> EngineDescriptor {
                 operations: vec!["synthesize".to_owned()],
                 input_contract_version: "1".to_owned(),
                 output_contract_version: "1".to_owned(),
-                constraints: BTreeMap::from([("execution".to_owned(), "external-synthesis-worker".to_owned())]),
+                constraints: BTreeMap::from([(
+                    "execution".to_owned(),
+                    "external-synthesis-worker".to_owned(),
+                )]),
                 availability: CapabilityAvailability::Available,
             },
         ],
