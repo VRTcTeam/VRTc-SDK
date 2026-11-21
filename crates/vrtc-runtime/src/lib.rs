@@ -3,11 +3,11 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use vrtc_crawler::{CrawlerConfig, CrawlerEngine};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
+use vrtc_crawler::{CrawlerConfig, CrawlerEngine};
 use vrtc_extract::{ExtractionConfig, ExtractionEngine};
 use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
@@ -510,7 +510,10 @@ fn crawler_engine_descriptor() -> EngineDescriptor {
             constraints: BTreeMap::from([
                 ("execution".to_owned(), "sequential-bounded-run".to_owned()),
                 ("scope".to_owned(), "same-origin-by-default".to_owned()),
-                ("robots".to_owned(), "rfc9309-conservative-policy".to_owned()),
+                (
+                    "robots".to_owned(),
+                    "rfc9309-conservative-policy".to_owned(),
+                ),
                 ("network".to_owned(), "public-addresses-only".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
