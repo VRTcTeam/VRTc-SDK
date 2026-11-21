@@ -122,7 +122,10 @@ impl ExtractionEngine {
         let title = metadata_value(&metadata, &["og:title", "twitter:title", "title"])
             .or_else(|| select_text(&document, "title"))
             .or_else(|| select_text(&document, "h1"));
-        let description = metadata_value(&metadata, &["description", "og:description", "twitter:description"]);
+        let description = metadata_value(
+            &metadata,
+            &["description", "og:description", "twitter:description"],
+        );
         let author = metadata_value(&metadata, &["author", "article:author", "parsely-author"]);
         let published_at = metadata_value(
             &metadata,
@@ -133,7 +136,11 @@ impl ExtractionEngine {
             .and_then(|value| normalize_url(&value, base.as_ref()));
         let headings = extract_headings(candidate);
         let links = extract_links(candidate, base.as_ref(), self.config.max_links);
-        let markdown = if markdown.is_empty() { text.clone() } else { markdown };
+        let markdown = if markdown.is_empty() {
+            text.clone()
+        } else {
+            markdown
+        };
         let confidence = estimate_confidence(&text, headings.len());
 
         Ok(ExtractedDocument {
@@ -161,7 +168,9 @@ fn choose_candidate<'a>(document: &'a Html) -> Option<ElementRef<'a>> {
         "article, main, [role='main'], [itemprop='articleBody'], #content, .content, .article, .post, .entry-content, body",
     )
     .ok()?;
-    document.select(&selector).max_by_key(|element| candidate_score(*element))
+    document
+        .select(&selector)
+        .max_by_key(|element| candidate_score(*element))
 }
 
 fn candidate_score(element: ElementRef<'_>) -> i64 {
@@ -194,10 +203,12 @@ fn candidate_score(element: ElementRef<'_>) -> i64 {
         .iter()
         .filter(|hint| class_and_id.contains(**hint))
         .count() as i64;
-    let negative = ["nav", "footer", "sidebar", "comment", "related", "menu", "advert", "header"]
-        .iter()
-        .filter(|hint| class_and_id.contains(**hint))
-        .count() as i64;
+    let negative = [
+        "nav", "footer", "sidebar", "comment", "related", "menu", "advert", "header",
+    ]
+    .iter()
+    .filter(|hint| class_and_id.contains(**hint))
+    .count() as i64;
     let excluded_text = Selector::parse("script,style,noscript,template,svg")
         .ok()
         .map(|selector| {
@@ -208,9 +219,16 @@ fn candidate_score(element: ElementRef<'_>) -> i64 {
         })
         .unwrap_or_default();
 
-    let body_penalty = if element.value().name() == "body" { 800 } else { 0 };
-    text_length + paragraphs * 180 + headings * 55 + positive * 260 - link_chars * 2
-        - negative * 650 - excluded_text * 2 - body_penalty
+    let body_penalty = if element.value().name() == "body" {
+        800
+    } else {
+        0
+    };
+    text_length + paragraphs * 180 + headings * 55 + positive * 260
+        - link_chars * 2
+        - negative * 650
+        - excluded_text * 2
+        - body_penalty
 }
 
 fn extract_blocks(candidate: ElementRef<'_>) -> (String, String) {
@@ -252,7 +270,12 @@ fn extract_headings(candidate: ElementRef<'_>) -> Vec<ExtractedHeading> {
     candidate
         .select(&selector)
         .filter_map(|element| {
-            let level = element.value().name().trim_start_matches('h').parse::<u8>().ok()?;
+            let level = element
+                .value()
+                .name()
+                .trim_start_matches('h')
+                .parse::<u8>()
+                .ok()?;
             let text = normalize_text(element.text().collect::<String>());
             (!text.is_empty()).then_some(ExtractedHeading { level, text })
         })
@@ -415,6 +438,8 @@ mod tests {
     #[test]
     fn rejects_short_or_empty_content() {
         let engine = ExtractionEngine::new(ExtractionConfig::default()).unwrap();
-        assert!(engine.extract("<html><body><main>short</main></body></html>", None).is_err());
+        assert!(engine
+            .extract("<html><body><main>short</main></body></html>", None)
+            .is_err());
     }
 }
