@@ -70,7 +70,10 @@ impl VrtcRuntime {
 
         if !descriptor.capabilities.iter().any(|capability| {
             capability.id == SEARCH_CAPABILITY_ID
-                && capability.operations.iter().any(|operation| operation == "search")
+                && capability
+                    .operations
+                    .iter()
+                    .any(|operation| operation == "search")
         }) {
             return Err(VrtCError::new(
                 "SEARCH_CAPABILITY_MISSING",
@@ -81,7 +84,12 @@ impl VrtcRuntime {
             .for_component(&descriptor.id));
         }
 
-        if self.search.provider_ids().iter().any(|id| id == &descriptor.id) {
+        if self
+            .search
+            .provider_ids()
+            .iter()
+            .any(|id| id == &descriptor.id)
+        {
             return Err(VrtCError::new(
                 "DUPLICATE_PROVIDER_ID",
                 "A search adapter with this identifier is already registered",
@@ -95,9 +103,9 @@ impl VrtcRuntime {
             RegistrationSource::Static => {
                 self.registry.register_static_provider(descriptor.clone())?
             }
-            RegistrationSource::Dynamic => {
-                self.registry.register_dynamic_provider(descriptor.clone())?
-            }
+            RegistrationSource::Dynamic => self
+                .registry
+                .register_dynamic_provider(descriptor.clone())?,
         }
         self.registry.activate_provider(&descriptor.id)?;
 
@@ -217,7 +225,10 @@ mod tests {
             )
             .unwrap();
 
-        let registered = runtime.registry().provider("provider.runtime.stub").unwrap();
+        let registered = runtime
+            .registry()
+            .provider("provider.runtime.stub")
+            .unwrap();
         assert_eq!(registered.lifecycle_state, LifecycleState::Ready);
         assert_eq!(
             runtime
