@@ -226,7 +226,10 @@ fn fetcher_engine_descriptor() -> EngineDescriptor {
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
                 ("schemes".to_owned(), "http,https".to_owned()),
-                ("network_scope".to_owned(), "public-addresses-only".to_owned()),
+                (
+                    "network_scope".to_owned(),
+                    "public-addresses-only".to_owned(),
+                ),
                 ("response_limit".to_owned(), "configurable".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
