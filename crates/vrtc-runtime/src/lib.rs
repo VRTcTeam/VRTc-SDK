@@ -18,6 +18,7 @@ use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_queue::{JobQueueEngine, QueueConfig};
+use vrtc_observability::{ObservabilityConfig, ObservabilityEngine};
 use vrtc_registry::Registry;
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
@@ -49,6 +50,8 @@ const STORAGE_ENGINE_ID: &str = "engine.vrtc.storage";
 const STORAGE_CAPABILITY_ID: &str = "storage.kv";
 const QUEUE_ENGINE_ID: &str = "engine.vrtc.queue";
 const QUEUE_CAPABILITY_ID: &str = "queue.jobs";
+const OBSERVABILITY_ENGINE_ID: &str = "engine.vrtc.observability";
+const OBSERVABILITY_CAPABILITY_ID: &str = "observability.telemetry";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -66,6 +69,7 @@ pub struct RuntimeConfig {
     pub storage: StorageConfig,
     pub storage_path: Option<PathBuf>,
     pub queue: QueueConfig,
+    pub observability: ObservabilityConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -83,6 +87,7 @@ pub struct VrtcRuntime {
     evidence: Arc<EvidenceEngine>,
     storage: Arc<StorageEngine>,
     queue: Arc<JobQueueEngine>,
+    observability: Arc<ObservabilityEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -107,6 +112,7 @@ impl VrtcRuntime {
             config.queue,
             Some(Arc::clone(&storage)),
         )?);
+        let observability = Arc::new(ObservabilityEngine::new(config.observability)?);
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -147,6 +153,8 @@ impl VrtcRuntime {
         registry.activate_engine(STORAGE_ENGINE_ID)?;
         registry.register_static_engine(queue_engine_descriptor())?;
         registry.activate_engine(QUEUE_ENGINE_ID)?;
+        registry.register_static_engine(observability_engine_descriptor())?;
+        registry.activate_engine(OBSERVABILITY_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -162,6 +170,7 @@ impl VrtcRuntime {
             evidence,
             storage,
             queue,
+            observability,
             registration_lock: Mutex::new(()),
         })
     }
@@ -324,6 +333,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn queue_engine(&self) -> Arc<JobQueueEngine> {
         Arc::clone(&self.queue)
+    }
+
+    /// Shared bounded telemetry, metric, and health snapshot engine.
+    #[must_use]
+    pub fn observability_engine(&self) -> Arc<ObservabilityEngine> {
+        Arc::clone(&self.observability)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -731,6 +746,38 @@ fn queue_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn observability_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: OBSERVABILITY_ENGINE_ID.to_owned(),
+        name: "VRTc Native Observability Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "observability".to_owned(),
+        capabilities: vec![Capability {
+            id: OBSERVABILITY_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "record_event".to_owned(),
+                "increment_counter".to_owned(),
+                "set_gauge".to_owned(),
+                "read_events".to_owned(),
+                "read_metrics".to_owned(),
+                "health_snapshot".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("retention".to_owned(), "bounded-in-memory".to_owned()),
+                ("metric_cardinality".to_owned(), "bounded".to_owned()),
+                ("export".to_owned(), "not-included".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -785,6 +832,16 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_observability_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(OBSERVABILITY_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "observability");
+        assert_eq!(engine.capabilities[0].id, OBSERVABILITY_CAPABILITY_ID);
+        runtime.observability_engine().health_snapshot().unwrap();
     }
 
     #[test]
