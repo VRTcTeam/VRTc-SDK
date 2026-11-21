@@ -1,0 +1,14 @@
+[package]
+name = "vrtc-archive"
+version = "0.1.0"
+description = "Bounded native WARC-compatible web archive engine for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+url = "2"
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true

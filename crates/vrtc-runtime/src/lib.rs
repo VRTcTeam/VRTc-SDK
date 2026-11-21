@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use vrtc_archive::{ArchiveConfig, ArchiveEngine};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -58,6 +59,8 @@ const OBSERVABILITY_ENGINE_ID: &str = "engine.vrtc.observability";
 const OBSERVABILITY_CAPABILITY_ID: &str = "observability.telemetry";
 const POLICY_ENGINE_ID: &str = "engine.vrtc.policy";
 const POLICY_CAPABILITY_ID: &str = "policy.evaluate";
+const ARCHIVE_ENGINE_ID: &str = "engine.vrtc.archive";
+const ARCHIVE_CAPABILITY_ID: &str = "archive.warc";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -78,6 +81,7 @@ pub struct RuntimeConfig {
     pub research: ResearchConfig,
     pub observability: ObservabilityConfig,
     pub policy: PolicyConfig,
+    pub archive: ArchiveConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -98,6 +102,7 @@ pub struct VrtcRuntime {
     research: Arc<ResearchPlanner>,
     observability: Arc<ObservabilityEngine>,
     policy: Arc<PolicyEngine>,
+    archive: Arc<ArchiveEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -131,6 +136,7 @@ impl VrtcRuntime {
         let research = Arc::new(ResearchPlanner::new(config.research)?);
         let observability = Arc::new(ObservabilityEngine::new(config.observability)?);
         let policy = Arc::new(PolicyEngine::new(config.policy)?);
+        let archive = Arc::new(ArchiveEngine::new(config.archive)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -171,6 +177,8 @@ impl VrtcRuntime {
         registry.activate_engine(OBSERVABILITY_ENGINE_ID)?;
         registry.register_static_engine(policy_engine_descriptor())?;
         registry.activate_engine(POLICY_ENGINE_ID)?;
+        registry.register_static_engine(archive_engine_descriptor())?;
+        registry.activate_engine(ARCHIVE_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -189,6 +197,7 @@ impl VrtcRuntime {
             research,
             observability,
             policy,
+            archive,
             registration_lock: Mutex::new(()),
         })
     }
@@ -369,6 +378,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn policy_engine(&self) -> Arc<PolicyEngine> {
         Arc::clone(&self.policy)
+    }
+
+    /// Shared bounded WARC-compatible web archive engine.
+    #[must_use]
+    pub fn archive_engine(&self) -> Arc<ArchiveEngine> {
+        Arc::clone(&self.archive)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -896,6 +911,37 @@ fn policy_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn archive_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: ARCHIVE_ENGINE_ID.to_owned(),
+        name: "VRTc Native WARC Web Archive Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "web-archive".to_owned(),
+        capabilities: vec![Capability {
+            id: ARCHIVE_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "capture_response".to_owned(),
+                "lookup_record".to_owned(),
+                "lookup_target".to_owned(),
+                "export_warc".to_owned(),
+                "archive_stats".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("format".to_owned(), "warc-1.1-response".to_owned()),
+                ("retention".to_owned(), "bounded-in-memory".to_owned()),
+                ("payload".to_owned(), "response-body".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -950,6 +996,19 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_archive_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(ARCHIVE_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "web-archive");
+        assert_eq!(engine.capabilities[0].id, ARCHIVE_CAPABILITY_ID);
+        assert_eq!(
+            runtime.archive_engine().stats().unwrap().records_retained,
+            0
+        );
     }
 
     #[test]
