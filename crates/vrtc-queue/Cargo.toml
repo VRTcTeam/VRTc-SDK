@@ -1,0 +1,16 @@
+[package]
+name = "vrtc-queue"
+version = "0.1.0"
+description = "Native bounded job queue with leases, retries, recovery, and dead letters"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+vrtc-core = { path = "../vrtc-core" }
+vrtc-storage = { path = "../vrtc-storage" }
+
+[lints]
+workspace = true
