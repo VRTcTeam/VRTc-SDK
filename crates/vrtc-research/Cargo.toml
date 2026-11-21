@@ -1,0 +1,13 @@
+[package]
+name = "vrtc-research"
+version = "0.1.0"
+description = "Native research request planning and dependency orchestration for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
