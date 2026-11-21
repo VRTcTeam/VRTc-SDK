@@ -20,6 +20,7 @@ vrtc-crawler = { path = "../vrtc-crawler" }
 vrtc-delta = { path = "../vrtc-delta" }
 vrtc-evidence = { path = "../vrtc-evidence" }
 vrtc-storage = { path = "../vrtc-storage" }
+vrtc-queue = { path = "../vrtc-queue" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
