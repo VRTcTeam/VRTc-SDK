@@ -599,9 +599,11 @@ mod engine_abstraction_tests {
 
     #[tokio::test]
     async fn render_queue_is_bounded_by_configured_wait_limit() {
-        let mut config = BrowserRenderConfig::default();
-        config.max_concurrent_renders = 1;
-        config.max_queue_wait_ms = 10;
+        let config = BrowserRenderConfig {
+            max_concurrent_renders: 1,
+            max_queue_wait_ms: 10,
+            ..BrowserRenderConfig::default()
+        };
         let renderer = BrowserRenderer::new(
             config,
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
