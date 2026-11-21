@@ -1,0 +1,15 @@
+[package]
+name = "vrtc-search"
+version = "0.1.0"
+description = "Provider-agnostic concurrent search orchestration for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+tokio.workspace = true
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
