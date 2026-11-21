@@ -601,7 +601,10 @@ mod engine_abstraction_tests {
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
         )
         .unwrap();
-        let permit = Arc::clone(&renderer.render_slots).acquire_owned().await.unwrap();
+        let permit = Arc::clone(&renderer.render_slots)
+            .acquire_owned()
+            .await
+            .unwrap();
         let error = renderer
             .render(BrowserRenderRequest {
                 source_url: "https://example.org".to_owned(),
