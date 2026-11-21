@@ -102,10 +102,14 @@ impl ObservabilityEngine {
             || config.max_event_code_bytes == 0
             || config.histogram_buckets.is_empty()
             || config.histogram_buckets.len() > 64
-            || config.histogram_buckets
+            || config
+                .histogram_buckets
                 .iter()
                 .any(|value| !value.is_finite() || *value <= 0.0)
-            || config.histogram_buckets.windows(2).any(|pair| pair[0] >= pair[1])
+            || config
+                .histogram_buckets
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
         {
             return Err(observability_error(
                 "INVALID_OBSERVABILITY_CONFIG",
@@ -133,25 +137,23 @@ impl ObservabilityEngine {
                 entry.insert(MetricValue::Counter(amount));
                 Ok(amount)
             }
-            std::collections::btree_map::Entry::Occupied(mut entry) => {
-                match entry.get_mut() {
-                    MetricValue::Counter(value) => {
-                        *value = value.checked_add(amount).ok_or_else(|| {
-                            observability_error(
-                                "COUNTER_OVERFLOW",
-                                "Counter increment exceeds the supported range",
-                                ErrorCategory::ResourceExhausted,
-                            )
-                        })?;
-                        Ok(*value)
-                    }
-                    _ => Err(observability_error(
-                        "METRIC_TYPE_CONFLICT",
-                        "Metric name and labels are already registered with another type",
-                        ErrorCategory::ContractIncompatible,
-                    )),
+            std::collections::btree_map::Entry::Occupied(mut entry) => match entry.get_mut() {
+                MetricValue::Counter(value) => {
+                    *value = value.checked_add(amount).ok_or_else(|| {
+                        observability_error(
+                            "COUNTER_OVERFLOW",
+                            "Counter increment exceeds the supported range",
+                            ErrorCategory::ResourceExhausted,
+                        )
+                    })?;
+                    Ok(*value)
                 }
-            }
+                _ => Err(observability_error(
+                    "METRIC_TYPE_CONFLICT",
+                    "Metric name and labels are already registered with another type",
+                    ErrorCategory::ContractIncompatible,
+                )),
+            },
         }
     }
 
@@ -224,10 +226,10 @@ impl ObservabilityEngine {
             }
             std::collections::btree_map::Entry::Occupied(mut entry) => match entry.get_mut() {
                 MetricValue::Histogram {
-                        count,
-                        sum,
-                        cumulative_buckets,
-                    } => {
+                    count,
+                    sum,
+                    cumulative_buckets,
+                } => {
                     let next_count = count.checked_add(1).ok_or_else(|| {
                         observability_error(
                             "HISTOGRAM_COUNT_OVERFLOW",
