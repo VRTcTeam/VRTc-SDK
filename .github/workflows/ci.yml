@@ -37,6 +37,8 @@ jobs:
           test -s crates/vrtc-api/src/lib.rs
           test -s docs/specifications/m3-search-engine.md
           test -s docs/specifications/m4-http-api.md
+          test -s sdks/typescript/src/index.ts
+          test -s sdks/python/src/vrtc_sdk/client.py
 
       - name: Check committed whitespace
         run: git diff-tree --check HEAD
@@ -64,3 +66,45 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace --all-features
+
+  typescript-sdk:
+    name: TypeScript SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Type-check SDK
+        run: npm run typecheck
+
+  python-sdk:
+    name: Python SDK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/python
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile package
+        run: python -m compileall -q src
+
+      - name: Run SDK unit tests
+        run: python -m unittest discover -s tests -v
