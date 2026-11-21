@@ -123,7 +123,7 @@ impl GeekflareSearchProvider {
         api_key: impl Into<String>,
         options: GeekflareSearchOptions,
     ) -> Result<Self, VrtCError> {
-        let api_key = api_key.into();
+        let api_key = api_key.into().trim().to_owned();
         if api_key.trim().is_empty() {
             return Err(validation_error(
                 "GEEKFLARE_API_KEY_MISSING",
@@ -207,12 +207,19 @@ impl SearchProvider for GeekflareSearchProvider {
 
         let payload = GeekflareSearchPayload {
             query: request.query,
-            limit: if request.limit == 0 { 10 } else { request.limit },
+            limit: if request.limit == 0 {
+                10
+            } else {
+                request.limit
+            },
             source: self.options.source.as_api_value(),
             location: self.options.location.as_deref(),
             city: self.options.city.as_deref(),
             time: self.options.time.as_deref(),
-            category: self.options.category.map(GeekflareSearchCategory::as_api_value),
+            category: self
+                .options
+                .category
+                .map(GeekflareSearchCategory::as_api_value),
             include_domains: non_empty(&request.domains),
             exclude_domains: non_empty(&self.options.exclude_domains),
             format: "json",
@@ -244,7 +251,11 @@ impl SearchProvider for GeekflareSearchProvider {
             .for_component(PROVIDER_ID)
         })?;
 
-        if body.api_status.as_deref().is_some_and(|value| value != "success") {
+        if body
+            .api_status
+            .as_deref()
+            .is_some_and(|value| value != "success")
+        {
             return Err(VrtCError::new(
                 "GEEKFLARE_API_ERROR",
                 "Geekflare reported that the search request was unsuccessful",
@@ -331,10 +342,7 @@ fn normalize_result(value: &Value, fallback_position: usize) -> Option<SearchRes
             .map(str::to_owned),
         score: Some(1.0 / position as f64),
         provider_id: PROVIDER_ID.to_owned(),
-        published_at: value
-            .get("date")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+        published_at: value.get("date").and_then(Value::as_str).map(str::to_owned),
         language: None,
         metadata,
     })
@@ -359,9 +367,11 @@ fn validate_options(options: &GeekflareSearchOptions) -> Result<(), VrtCError> {
 
     if let Some(time) = &options.time {
         let valid = matches!(time.as_str(), "h" | "d" | "w" | "m" | "y")
-            || time.strip_prefix(['h', 'd', 'w', 'm', 'y']).is_some_and(|count| {
-                !count.is_empty() && count.bytes().all(|byte| byte.is_ascii_digit())
-            });
+            || time
+                .strip_prefix(['h', 'd', 'w', 'm', 'y'])
+                .is_some_and(|count| {
+                    !count.is_empty() && count.bytes().all(|byte| byte.is_ascii_digit())
+                });
         if !valid {
             return Err(validation_error(
                 "GEEKFLARE_INVALID_TIME_FILTER",
@@ -464,7 +474,10 @@ mod tests {
         assert_eq!(result.provider_id, PROVIDER_ID);
         assert_eq!(result.score, Some(0.5));
         assert_eq!(result.published_at.as_deref(), Some("2026-11-20"));
-        assert_eq!(result.metadata.get("position").map(String::as_str), Some("2"));
+        assert_eq!(
+            result.metadata.get("position").map(String::as_str),
+            Some("2")
+        );
     }
 
     #[test]
