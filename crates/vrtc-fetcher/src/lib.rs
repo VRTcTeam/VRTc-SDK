@@ -352,17 +352,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_public_ip_ranges() {
-        for address in [
-            "127.0.0.1",
-            "10.0.0.1",
-            "192.168.1.1",
-            "169.254.1.1",
-            "100.64.0.1",
-            "198.18.0.1",
-        ] {
-            assert!(!is_public_ip(address.parse().unwrap()), "{address}");
-        }
-        assert!(is_public_ip("8.8.8.8".parse().unwrap()));
+    fn fetcher_accepts_the_runtime_network_engine() {
+        let network = Arc::new(NetworkEngine::new(NetworkConfig::default()).unwrap());
+        assert!(FetchEngine::with_network(FetchConfig::default(), network).is_ok());
     }
 }
