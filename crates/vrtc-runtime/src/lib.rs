@@ -1005,7 +1005,10 @@ mod tests {
         assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
         assert_eq!(engine.kind, "web-archive");
         assert_eq!(engine.capabilities[0].id, ARCHIVE_CAPABILITY_ID);
-        assert_eq!(runtime.archive_engine().stats().unwrap().records_retained, 0);
+        assert_eq!(
+            runtime.archive_engine().stats().unwrap().records_retained,
+            0
+        );
     }
 
     #[test]
