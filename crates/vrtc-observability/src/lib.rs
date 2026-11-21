@@ -155,7 +155,14 @@ impl ObservabilityEngine {
                 ErrorCategory::Validation,
             ));
         }
-        self.update_metric(name, labels, MetricKind::Counter, amount as f64, timestamp_ms, true)
+        self.update_metric(
+            name,
+            labels,
+            MetricKind::Counter,
+            amount as f64,
+            timestamp_ms,
+            true,
+        )
     }
 
     pub fn set_gauge(
@@ -292,9 +299,7 @@ impl ObservabilityEngine {
 }
 
 fn valid_identifier(value: &str, max_bytes: usize) -> bool {
-    !value.trim().is_empty()
-        && value.len() <= max_bytes
-        && !value.chars().any(char::is_control)
+    !value.trim().is_empty() && value.len() <= max_bytes && !value.chars().any(char::is_control)
 }
 
 fn error(code: &str, message: &str, category: ErrorCategory) -> VrtCError {
@@ -323,9 +328,15 @@ mod tests {
             ..ObservabilityConfig::default()
         })
         .unwrap();
-        engine.record_event(event("event-1", Severity::Info)).unwrap();
-        engine.record_event(event("event-2", Severity::Warn)).unwrap();
-        engine.record_event(event("event-3", Severity::Error)).unwrap();
+        engine
+            .record_event(event("event-1", Severity::Info))
+            .unwrap();
+        engine
+            .record_event(event("event-2", Severity::Warn))
+            .unwrap();
+        engine
+            .record_event(event("event-3", Severity::Error))
+            .unwrap();
 
         let snapshot = engine.health_snapshot().unwrap();
         assert_eq!(snapshot.total_events_recorded, 3);
@@ -340,15 +351,24 @@ mod tests {
         let engine = ObservabilityEngine::new(ObservabilityConfig::default()).unwrap();
         let labels = BTreeMap::from([("engine".to_owned(), "search".to_owned())]);
         assert_eq!(
-            engine.increment_counter("requests_total", labels.clone(), 2, 1).unwrap().value,
+            engine
+                .increment_counter("requests_total", labels.clone(), 2, 1)
+                .unwrap()
+                .value,
             2.0
         );
         assert_eq!(
-            engine.increment_counter("requests_total", labels.clone(), 3, 2).unwrap().value,
+            engine
+                .increment_counter("requests_total", labels.clone(), 3, 2)
+                .unwrap()
+                .value,
             5.0
         );
         assert_eq!(
-            engine.set_gauge("queue_depth", labels, 4.0, 3).unwrap().value,
+            engine
+                .set_gauge("queue_depth", labels, 4.0, 3)
+                .unwrap()
+                .value,
             4.0
         );
     }
@@ -360,7 +380,9 @@ mod tests {
             ..ObservabilityConfig::default()
         })
         .unwrap();
-        engine.set_gauge("queue_depth", BTreeMap::new(), 1.0, 1).unwrap();
+        engine
+            .set_gauge("queue_depth", BTreeMap::new(), 1.0, 1)
+            .unwrap();
         let error = engine
             .set_gauge("worker_count", BTreeMap::new(), 2.0, 2)
             .unwrap_err();
