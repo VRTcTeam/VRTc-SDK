@@ -81,7 +81,7 @@ The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports pub
 
 ## Native WARC Web Archive Engine
 
-VRTc now has a bounded in-memory WARC/1.1 response archive with UUID record IDs, capture timestamps, normalized target URLs, filtered response headers, bounded retention, lookup, and WARC export. It archives responses supplied by callers; automatic Fetcher/Crawler capture and durable storage are future work. See [M21 Native Web Archive Specification](docs/specifications/m21-native-web-archive.md).
+VRTc now has a bounded in-memory WARC/1.1 response archive with UUID record IDs, capture timestamps, normalized target URLs, filtered response headers, bounded retention, lookup, and WARC export. It archives responses supplied by callers; automatic Fetcher/Crawler capture and durable storage are future work. See [M22 Native Web Archive Specification](docs/specifications/m22-native-web-archive.md).
 
 ## Native Security & Retrieval Policy
 
