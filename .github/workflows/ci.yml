@@ -41,6 +41,7 @@ jobs:
           test -s crates/vrtc-index/src/lib.rs
           test -s crates/vrtc-retrieval/src/lib.rs
           test -s crates/vrtc-feedback/src/lib.rs
+          test -s crates/vrtc-crawler/src/lib.rs
           test -s crates/vrtc-runtime/src/lib.rs
           test -s crates/vrtc-api/src/lib.rs
           test -s crates/vrtc-provider-geekflare/src/lib.rs
@@ -53,6 +54,7 @@ jobs:
           test -s docs/specifications/m10-native-hybrid-retrieval.md
           test -s docs/specifications/m11-native-human-feedback.md
           test -s docs/specifications/m12-native-metasearch.md
+          test -s docs/specifications/m13-native-crawler-orchestration.md
           test -s sdks/typescript/src/index.ts
           test -s sdks/python/src/vrtc_sdk/client.py
 
