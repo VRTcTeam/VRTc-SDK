@@ -78,11 +78,14 @@ pub struct ResearchStep {
 pub struct ResearchPlan {
     pub request_id: String,
     pub query: String,
+    pub max_sources: usize,
+    pub max_crawl_depth: Option<u8>,
     pub steps: Vec<ResearchStep>,
     pub execution_order: Vec<String>,
     pub parallel_groups: BTreeMap<u8, Vec<String>>,
 }
 
+#[derive(Debug)]
 pub struct ResearchPlanner {
     config: ResearchConfig,
 }
@@ -126,7 +129,7 @@ impl ResearchPlanner {
         if request.crawl {
             steps.push(step("crawl", ResearchStepKind::Crawl, vec![], 1));
             steps.push(step("extract", ResearchStepKind::Extract, vec!["crawl"], 2));
-            steps.push(step("index", ResearchStepKind::Index, vec!["extract"], 2));
+            steps.push(step("index", ResearchStepKind::Index, vec!["extract"], 3));
         }
         let retrieval_dependencies = if request.crawl {
             vec!["search", "index"]
@@ -137,20 +140,20 @@ impl ResearchPlanner {
             "retrieve",
             ResearchStepKind::Retrieve,
             retrieval_dependencies,
-            3,
+            4,
         ));
         steps.push(step(
             "verify",
             ResearchStepKind::VerifyEvidence,
             vec!["retrieve"],
-            4,
+            5,
         ));
         if request.human_review {
             steps.push(step(
                 "human-review",
                 ResearchStepKind::HumanReview,
                 vec!["verify"],
-                5,
+                6,
             ));
         }
         let synthesis_dependency = if request.human_review {
@@ -162,7 +165,7 @@ impl ResearchPlanner {
             "synthesize",
             ResearchStepKind::Synthesize,
             vec![synthesis_dependency],
-            6,
+            7,
         ));
 
         if steps.len() > self.config.max_steps {
@@ -187,6 +190,8 @@ impl ResearchPlanner {
         Ok(ResearchPlan {
             request_id: request.id,
             query: request.query.trim().to_owned(),
+            max_sources: request.max_sources,
+            max_crawl_depth: request.crawl.then_some(request.max_crawl_depth),
             steps,
             execution_order,
             parallel_groups,
@@ -249,7 +254,7 @@ fn topological_order(steps: &[ResearchStep]) -> Result<Vec<String>, VrtCError> {
         order.push(id.to_owned());
         if let Some(children) = dependents.get(id) {
             for child in children {
-                let degree = indegree.get_mut(child).expect("validated node");
+                let degree = indegree.get_mut(*child).expect("validated node");
                 *degree -= 1;
                 if *degree == 0 {
                     ready.push_back(child);
