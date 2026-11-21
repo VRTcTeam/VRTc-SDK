@@ -4,8 +4,11 @@
 //! into an about:blank page, disables JavaScript, and injects a restrictive CSP
 //! so rendering cannot fetch remote subresources or execute page scripts.
 
+use std::collections::HashMap;
+use std::future::Future;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::pin::Pin;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
@@ -247,6 +250,159 @@ impl BrowserRenderer {
         let _ = browser.close().await;
         let _ = handler_task.await;
         render_result
+    }
+}
+
+
+/// Browser implementation family. Declaring a family does not imply that its
+/// backend is installed or available at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrowserEngineFamily {
+    Chromium,
+    WebKit,
+    Gecko,
+    Custom,
+}
+
+/// Capabilities are explicit so callers do not assume feature parity between
+/// browser engines.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserEngineCapabilities {
+    pub renders_fetched_snapshots: bool,
+    pub javascript_control: bool,
+    pub blocks_remote_subresources: bool,
+    pub supports_live_navigation: bool,
+}
+
+/// Stable, non-secret metadata exposed by a browser backend.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserEngineInfo {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub family: BrowserEngineFamily,
+    pub capabilities: BrowserEngineCapabilities,
+}
+
+/// Backend-neutral browser rendering contract.
+///
+/// Implementations receive already-fetched HTML. The current contract does not
+/// grant permission to navigate to arbitrary source URLs.
+pub trait BrowserEngine: Send + Sync {
+    fn info(&self) -> BrowserEngineInfo;
+
+    fn render<'a>(
+        &'a self,
+        request: BrowserRenderRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<RenderedPage, VrtCError>> + Send + 'a>>;
+}
+
+/// In-process engine catalog. Registration stores trusted Rust implementations;
+/// it never loads plugins or executes code from descriptors.
+#[derive(Default)]
+pub struct BrowserEngineRegistry {
+    engines: RwLock<HashMap<String, Arc<dyn BrowserEngine>>>,
+}
+
+impl BrowserEngineRegistry {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(&self, engine: Arc<dyn BrowserEngine>) -> Result<(), VrtCError> {
+        let info = engine.info();
+        if info.id.trim().is_empty() || info.name.trim().is_empty() || info.version.trim().is_empty() {
+            return Err(browser_error(
+                "INVALID_BROWSER_ENGINE_IDENTITY",
+                "Browser engine id, name, and version must not be empty",
+                ErrorCategory::Validation,
+            ));
+        }
+        let mut engines = self.engines.write().map_err(|_| {
+            browser_error(
+                "BROWSER_ENGINE_REGISTRY_LOCK_POISONED",
+                "Browser engine registry lock is unavailable",
+                ErrorCategory::Internal,
+            )
+        })?;
+        if engines.contains_key(&info.id) {
+            return Err(browser_error(
+                "DUPLICATE_BROWSER_ENGINE",
+                "A browser engine with this id is already registered",
+                ErrorCategory::DuplicateId,
+            ));
+        }
+        engines.insert(info.id, engine);
+        Ok(())
+    }
+
+    pub fn engine_info(&self, id: &str) -> Result<BrowserEngineInfo, VrtCError> {
+        let engines = self.engines.read().map_err(|_| {
+            browser_error(
+                "BROWSER_ENGINE_REGISTRY_LOCK_POISONED",
+                "Browser engine registry lock is unavailable",
+                ErrorCategory::Internal,
+            )
+        })?;
+        engines
+            .get(id)
+            .map(|engine| engine.info())
+            .ok_or_else(|| {
+                browser_error(
+                    "BROWSER_ENGINE_NOT_FOUND",
+                    "Requested browser engine is not registered",
+                    ErrorCategory::NotFound,
+                )
+            })
+    }
+
+    pub async fn render(
+        &self,
+        id: &str,
+        request: BrowserRenderRequest,
+    ) -> Result<RenderedPage, VrtCError> {
+        let engine = {
+            let engines = self.engines.read().map_err(|_| {
+                browser_error(
+                    "BROWSER_ENGINE_REGISTRY_LOCK_POISONED",
+                    "Browser engine registry lock is unavailable",
+                    ErrorCategory::Internal,
+                )
+            })?;
+            engines.get(id).cloned().ok_or_else(|| {
+                browser_error(
+                    "BROWSER_ENGINE_NOT_FOUND",
+                    "Requested browser engine is not registered",
+                    ErrorCategory::NotFound,
+                )
+            })?
+        };
+        engine.render(request).await
+    }
+}
+
+impl BrowserEngine for BrowserRenderer {
+    fn info(&self) -> BrowserEngineInfo {
+        BrowserEngineInfo {
+            id: "browser.chromiumoxide".to_owned(),
+            name: "Chromium snapshot renderer".to_owned(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+            family: BrowserEngineFamily::Chromium,
+            capabilities: BrowserEngineCapabilities {
+                renders_fetched_snapshots: true,
+                javascript_control: true,
+                blocks_remote_subresources: true,
+                supports_live_navigation: false,
+            },
+        }
+    }
+
+    fn render<'a>(
+        &'a self,
+        request: BrowserRenderRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<RenderedPage, VrtCError>> + Send + 'a>> {
+        Box::pin(BrowserRenderer::render(self, request))
     }
 }
 
