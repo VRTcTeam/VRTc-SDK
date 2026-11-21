@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, and native hybrid Retrieval & Reranking are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -74,6 +74,10 @@ The runtime now statically registers a VRTc-owned URL Frontier Engine. It provid
 ## Native HTTP Fetcher
 
 The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
+
+## Native Human Feedback & Evaluation
+
+The runtime statically registers a VRTc-owned human review engine. It creates and lists bounded review tasks, records versioned 0–3 graded relevance judgments, preserves independent reviewer labels, flags material disagreement for adjudication, and evaluates rankings with Precision@k, Recall@k, MRR, nDCG@k, exact agreement rate, and disagreement counts. The initial store is in-memory; authentication, durable persistence, rubric text, reviewer UI, and HTTP/SDK methods remain host/integration responsibilities. See [M11 Native Human Feedback Specification](docs/specifications/m11-native-human-feedback.md).
 
 ## Initial HTTP API
 
