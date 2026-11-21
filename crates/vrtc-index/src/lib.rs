@@ -170,10 +170,7 @@ impl IndexEngine {
     }
 
     /// Insert or replace a bounded batch of documents and publish one commit.
-    pub fn index_batch(
-        &self,
-        documents: &[IndexDocument],
-    ) -> Result<IndexBatchResult, VrtCError> {
+    pub fn index_batch(&self, documents: &[IndexDocument]) -> Result<IndexBatchResult, VrtCError> {
         if documents.len() > self.config.max_batch_documents {
             return Err(index_error(
                 "INDEX_BATCH_TOO_LARGE",
@@ -433,12 +430,7 @@ fn stored_text(document: &TantivyDocument, field: Field) -> String {
         .to_owned()
 }
 
-fn index_error(
-    code: &str,
-    message: &str,
-    category: ErrorCategory,
-    retryable: bool,
-) -> VrtCError {
+fn index_error(code: &str, message: &str, category: ErrorCategory, retryable: bool) -> VrtCError {
     VrtCError::new(code, message, category, retryable)
 }
 
