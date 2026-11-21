@@ -257,7 +257,7 @@ fn topological_order(steps: &[ResearchStep]) -> Result<Vec<String>, VrtCError> {
                 let degree = indegree.get_mut(*child).expect("validated node");
                 *degree -= 1;
                 if *degree == 0 {
-                    ready.push_back(child);
+                    ready.push_back(*child);
                 }
             }
         }
@@ -325,8 +325,10 @@ mod tests {
 
     #[test]
     fn rejects_zero_configuration_limits() {
-        let mut config = ResearchConfig::default();
-        config.max_steps = 0;
+        let config = ResearchConfig {
+            max_steps: 0,
+            ..ResearchConfig::default()
+        };
         assert_eq!(
             ResearchPlanner::new(config).unwrap_err().code,
             "INVALID_RESEARCH_CONFIG"
