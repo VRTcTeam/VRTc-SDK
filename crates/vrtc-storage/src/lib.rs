@@ -117,6 +117,16 @@ struct RedbBackend {
 
 impl RedbBackend {
     fn open(path: &Path) -> Result<Self, VrtCError> {
+        if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent).map_err(|_| {
+                storage_error(
+                    "STORAGE_DIRECTORY_CREATE_FAILED",
+                    "The embedded database directory could not be created",
+                    ErrorCategory::Internal,
+                    false,
+                )
+            })?;
+        }
         let database = if path.exists() {
             Database::open(path)
         } else {
