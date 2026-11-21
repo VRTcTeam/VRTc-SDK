@@ -1119,6 +1119,18 @@ mod tests {
     }
 
     #[test]
+    fn built_in_chromium_backend_is_available_through_runtime_registry() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let info = runtime
+            .browser_engine_registry()
+            .engine_info("browser.chromiumoxide")
+            .unwrap();
+        assert_eq!(info.family, vrtc_browser::BrowserEngineFamily::Chromium);
+        assert!(info.capabilities.renders_fetched_snapshots);
+        assert!(!info.capabilities.supports_live_navigation);
+    }
+
+    #[test]
     fn built_in_archive_engine_is_registered_and_ready() {
         let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
         let engine = runtime.registry().engine(ARCHIVE_ENGINE_ID).unwrap();
