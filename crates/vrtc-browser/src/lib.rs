@@ -312,7 +312,10 @@ impl BrowserEngineRegistry {
 
     pub fn register(&self, engine: Arc<dyn BrowserEngine>) -> Result<(), VrtCError> {
         let info = engine.info();
-        if info.id.trim().is_empty() || info.name.trim().is_empty() || info.version.trim().is_empty() {
+        if info.id.trim().is_empty()
+            || info.name.trim().is_empty()
+            || info.version.trim().is_empty()
+        {
             return Err(browser_error(
                 "INVALID_BROWSER_ENGINE_IDENTITY",
                 "Browser engine id, name, and version must not be empty",
