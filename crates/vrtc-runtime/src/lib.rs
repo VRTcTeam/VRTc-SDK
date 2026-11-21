@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use vrtc_core::{
-    Capability, CapabilityAvailability, ConnectionMode, EngineDescriptor, ErrorCategory,
+    Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory,
     LifecycleState, ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse,
     VrtCError,
 };
@@ -165,7 +165,7 @@ mod tests {
     use super::*;
     use async_trait::async_trait;
     use std::collections::BTreeMap;
-    use vrtc_core::SearchResult;
+    use vrtc_core::{ConnectionMode, SearchResult};
 
     struct StubProvider {
         id: &'static str,
