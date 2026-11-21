@@ -148,3 +148,62 @@ impl VrtCError {
         self
     }
 }
+
+
+/// Canonical request shared by the VRTc Search Engine and provider adapters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchRequest {
+    pub query: String,
+    /// Zero asks the engine to apply its configured default.
+    pub limit: usize,
+    pub language: Option<String>,
+    pub domains: Vec<String>,
+    /// RFC 3339 timestamps; lexical comparison is valid for normalized UTC values.
+    pub published_after: Option<String>,
+    pub published_before: Option<String>,
+}
+
+impl SearchRequest {
+    #[must_use]
+    pub fn new(query: impl Into<String>) -> Self {
+        Self {
+            query: query.into(),
+            limit: 0,
+            language: None,
+            domains: Vec::new(),
+            published_after: None,
+            published_before: None,
+        }
+    }
+}
+
+/// One normalized search result with provider provenance.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchResult {
+    pub title: String,
+    pub url: String,
+    pub snippet: Option<String>,
+    pub score: Option<f64>,
+    pub provider_id: ComponentId,
+    pub published_at: Option<String>,
+    pub language: Option<String>,
+    pub metadata: BTreeMap<String, String>,
+}
+
+/// Safe, structured failure reported by an individual search provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderSearchError {
+    pub provider_id: ComponentId,
+    pub code: String,
+    pub message: String,
+    pub retryable: bool,
+}
+
+/// Aggregated response returned by the VRTc Search Engine.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SearchResponse {
+    pub query: String,
+    pub results: Vec<SearchResult>,
+    pub providers_queried: Vec<ComponentId>,
+    pub provider_errors: Vec<ProviderSearchError>,
+}
