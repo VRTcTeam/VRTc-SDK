@@ -15,6 +15,7 @@ pub struct PolicyConfig {
     pub max_crawl_depth: u8,
     pub allow_http: bool,
     pub allow_https: bool,
+    pub allowed_ports: Vec<u16>,
     pub same_origin_default: bool,
     pub require_robots_for_crawl: bool,
     pub block_non_public_addresses: bool,
@@ -30,6 +31,7 @@ impl Default for PolicyConfig {
             max_crawl_depth: 5,
             allow_http: true,
             allow_https: true,
+            allowed_ports: vec![80, 443],
             same_origin_default: true,
             require_robots_for_crawl: true,
             block_non_public_addresses: true,
@@ -61,6 +63,7 @@ pub enum PolicyReason {
     Allowed,
     InvalidUrl,
     UnsupportedScheme,
+    PortNotAllowed,
     CredentialsForbidden,
     HostDenied,
     HostNotAllowlisted,
@@ -68,6 +71,7 @@ pub enum PolicyReason {
     CrossOriginDenied,
     CrawlDepthExceeded,
     RobotsNotApproved,
+    InvalidOrigin,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,9 +91,17 @@ impl PolicyEngine {
         if config.max_url_bytes == 0
             || config.max_crawl_depth == 0
             || (!config.allow_http && !config.allow_https)
+            || config.allowed_ports.is_empty()
+            || config.allowed_ports.contains(&0)
             || config.allowed_hosts.iter().any(|host| !valid_host_rule(host))
             || config.denied_hosts.iter().any(|host| !valid_host_rule(host))
-            || config.allowed_origins.iter().any(|origin| Url::parse(origin).is_err())
+            || config.allowed_origins.iter().any(|origin| {
+                Url::parse(origin).map_or(true, |url| {
+                    !matches!(url.scheme(), "http" | "https")
+                        || !url.username().is_empty()
+                        || url.password().is_some()
+                })
+            })
         {
             return Err(policy_error(
                 "INVALID_POLICY_CONFIG",
@@ -134,6 +146,9 @@ impl PolicyEngine {
         if !scheme_allowed {
             return Ok(denied(PolicyReason::UnsupportedScheme));
         }
+        if !self.config.allowed_ports.contains(&target.port_or_known_default().unwrap_or(0)) {
+            return Ok(denied(PolicyReason::PortNotAllowed));
+        }
         let Some(host) = target.host_str().map(normalize_host) else {
             return Ok(denied(PolicyReason::InvalidUrl));
         };
@@ -154,9 +169,15 @@ impl PolicyEngine {
 
         if self.config.same_origin_default {
             if let Some(origin) = request.origin_url.as_deref() {
-                let origin = Url::parse(origin).map_err(|_| {
-                    policy_error("INVALID_POLICY_ORIGIN", "The supplied origin URL is invalid")
-                })?;
+                let Ok(origin) = Url::parse(origin) else {
+                    return Ok(denied(PolicyReason::InvalidOrigin));
+                };
+                if !matches!(origin.scheme(), "http" | "https")
+                    || !origin.username().is_empty()
+                    || origin.password().is_some()
+                {
+                    return Ok(denied(PolicyReason::InvalidOrigin));
+                }
                 let same_origin = target.origin() == origin.origin();
                 let explicitly_allowed = self
                     .config
@@ -199,11 +220,15 @@ fn denied(reason: PolicyReason) -> PolicyDecision {
 
 fn valid_host_rule(host: &str) -> bool {
     let host = host.trim().trim_start_matches("*.");
-    !host.is_empty()
-        && host.len() <= 253
-        && !host.contains('/')
-        && !host.contains(':')
-        && !host.chars().any(char::is_control)
+    if host.is_empty() || host.len() > 253 || host.chars().any(char::is_control) {
+        return false;
+    }
+    Url::parse(&format!("http://{host}/")).is_ok_and(|url| {
+        url.host_str().is_some_and(|parsed| normalize_host(parsed) == normalize_host(host))
+            && url.port().is_none()
+            && url.username().is_empty()
+            && url.password().is_none()
+    })
 }
 
 fn normalize_host_rule(host: &str) -> String {
@@ -227,20 +252,29 @@ fn is_non_public_host(host: &str) -> bool {
     };
     match address {
         IpAddr::V4(ip) => {
+            let octets = ip.octets();
             ip.is_private()
                 || ip.is_loopback()
                 || ip.is_link_local()
                 || ip.is_unspecified()
                 || ip.is_multicast()
-                || ip.octets() == [255, 255, 255, 255]
+                || ip.is_broadcast()
+                || ip.is_documentation()
+                || octets[0] == 0
+                || octets[0] >= 240
+                || (octets[0] == 100 && (octets[1] & 0xc0) == 64)
+                || (octets[0] == 192 && octets[1] == 0)
+                || (octets[0] == 198 && matches!(octets[1], 18 | 19))
         }
         IpAddr::V6(ip) => {
             let segments = ip.segments();
-            ip.is_loopback()
+            let global_unicast = segments[0] & 0xe000 == 0x2000;
+            !global_unicast
+                || ip.is_loopback()
                 || ip.is_unspecified()
                 || ip.is_multicast()
-                || (segments[0] & 0xfe00) == 0xfc00
-                || (segments[0] & 0xffc0) == 0xfe80
+                || (segments[0] == 0x2001 && segments[1] == 0x0db8)
+                || ip.to_ipv4_mapped().is_some_and(|mapped| is_non_public_host(&mapped.to_string()))
         }
     }
 }
@@ -302,6 +336,18 @@ mod tests {
             engine.evaluate(&request("https://blocked.example/page")).unwrap().reason,
             PolicyReason::HostDenied
         );
+    }
+
+    #[test]
+    fn rejects_non_standard_ports_and_invalid_origins() {
+        let engine = PolicyEngine::new(PolicyConfig::default()).unwrap();
+        assert_eq!(
+            engine.evaluate(&request("https://example.org:8443/path")).unwrap().reason,
+            PolicyReason::PortNotAllowed
+        );
+        let mut invalid_origin = request("https://example.org/path");
+        invalid_origin.origin_url = Some("file:///tmp".to_owned());
+        assert_eq!(engine.evaluate(&invalid_origin).unwrap().reason, PolicyReason::InvalidOrigin);
     }
 
     #[test]
