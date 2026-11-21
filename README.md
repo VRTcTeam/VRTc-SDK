@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: M1 contract and registry specification baseline. Runtime components are not yet implemented.
+> Project status: Rust core contracts, hybrid registry, and the first provider-agnostic Search Engine foundation are implemented. Public HTTP API and language clients are the next integration milestone.
 
 ## Project principles
 
@@ -50,40 +50,39 @@ The M1 baseline is documented in [Core Contracts & Registry Specification](docs/
 
 ## Initial subsystem: Search Engine
 
-The first subsystem will establish VRTc's provider-independent search contract.
+The first subsystem is a VRTc-owned orchestration layer with provider-neutral contracts.
 
-Initial responsibilities:
+Implemented foundation:
 
-- query validation and normalization;
-- provider capability discovery and dispatch;
-- concurrent provider execution with bounded resources;
-- timeout and cancellation handling;
-- result normalization and deduplication;
-- ranking and result merging;
-- filters such as language, date, and domain;
-- provenance retention and provider-level error isolation.
+- async provider interface and runtime registration;
+- bounded concurrent provider dispatch;
+- per-provider timeout and failure isolation;
+- query normalization and request validation;
+- result normalization, URL deduplication, ranking, and result limits;
+- language, domain, and publication-date filters;
+- provider provenance and structured provider-level errors.
 
 The VRTc Search Engine coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
 
-External search services are optional adapters. The core SDK must not require a paid provider to exist.
+External search services are optional adapters. The core SDK does not require a paid provider to exist. The current implementation does not include a built-in public-web index or claim to search the internet without a configured provider.
 
 ## Core contracts
 
-The specification covers shared models including:
+The shared Rust contracts include component descriptors, capabilities, structured errors, and search request/result models. The language-neutral contract specification covers:
 
-- `ResearchRequest`
-- `ResearchJob`
-- `EngineDescriptor`
-- `ProviderDescriptor`
-- `SearchQuery`
-- `SearchResult`
-- `Source`
-- `Document`
-- `Evidence`
-- `RetrievalResult`
-- `ResearchResult`
-- `EngineEvent`
-- `VRTcError`
+- ResearchRequest
+- ResearchJob
+- EngineDescriptor
+- ProviderDescriptor
+- SearchQuery
+- SearchResult
+- Source
+- Document
+- Evidence
+- RetrievalResult
+- ResearchResult
+- EngineEvent
+- VRTcError
 
 Contracts should carry stable identifiers, schema versions, timestamps where relevant, structured status and error information, and source provenance.
 
@@ -104,8 +103,6 @@ Python, Elixir, Assembly, JavaScript, Java, Markdown, TypeScript, Rust, C#, Go, 
 Not every entry is intended to implement every subsystem. Markdown and SQL are supporting interface/data languages rather than general-purpose SDK implementation targets.
 
 ## Planned subsystem landscape
-
-The long-term architecture identifies these 20 subsystem areas:
 
 1. Crawler Engine
 2. Search Engine
@@ -136,18 +133,18 @@ This is a target architecture, not a statement that all subsystems are available
 |---|---|---|
 | M0 | Architecture and project specification | Baseline established |
 | M1 | Core contracts and registry specification | Specification baseline drafted |
-| M2 | Rust core foundation and registry implementation | Initial workspace, contracts, and hybrid registry committed |
-| M3 | First Search Engine implementation | Planned |
-| M4 | Initial public API and SDK client | Planned |
+| M2 | Rust core foundation and registry implementation | Initial implementation committed |
+| M3 | First Search Engine implementation | Initial provider-agnostic engine committed |
+| M4 | Initial public API and SDK client | Next |
 | M5 | Additional language SDKs and provider adapters | Planned |
 | M6 | Additional research and retrieval subsystems | Planned |
 | M7 | Hardening, documentation, compatibility, and releases | Planned |
 
 ## CI/CD
 
-GitHub Actions provides repository checks, conditional Rust workspace checks, CodeQL analysis for workflow code, dependency review, OpenSSF Scorecard reporting, Dependabot updates, and tag-triggered source releases.
+GitHub Actions runs repository checks and Rust formatting, Clippy, and workspace tests. The repository also includes CodeQL workflow analysis, dependency review, OpenSSF Scorecard reporting, Dependabot updates, and tag-triggered source releases.
 
-Rust formatting, Clippy, and unit tests now activate against the initial Cargo workspace. The current Rust implementation is an early foundation, not a production-ready runtime.
+A green CI run is required before describing a commit as verified. The current implementation is an early SDK foundation, not a production-ready hosted search service.
 
 ## Security
 
@@ -155,6 +152,6 @@ Do not commit credentials or local environment files. Use repository or environm
 
 ## Repository status
 
-VRTc is under active specification and foundation development. APIs and implementation details may evolve through documented design decisions and versioned contracts.
+VRTc is under active development. APIs and implementation details may evolve through documented design decisions and versioned contracts.
 
-No provider credentials are required to define or build the core contracts. Provider integrations should be configured explicitly by the operator.
+No provider credentials are required to build the core contracts or Search Engine. Provider integrations must be configured explicitly by the operator.
