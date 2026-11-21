@@ -559,6 +559,32 @@ mod engine_abstraction_tests {
     }
 
     #[tokio::test]
+    async fn policy_denial_happens_before_render_capacity_admission() {
+        let mut config = BrowserRenderConfig::default();
+        config.max_concurrent_renders = 1;
+        config.max_queue_wait_ms = 10;
+        let renderer = BrowserRenderer::new(
+            config,
+            Arc::new(PolicyEngine::new(Default::default()).unwrap()),
+        )
+        .unwrap();
+        let permit = Arc::clone(&renderer.render_slots).acquire_owned().await.unwrap();
+        let error = renderer
+            .render(BrowserRenderRequest {
+                source_url: "file:///etc/passwd".to_owned(),
+                origin_url: None,
+                html: "<h1>blocked</h1>".to_owned(),
+                is_crawl: false,
+                crawl_depth: 0,
+                robots_allowed: None,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "BROWSER_POLICY_DENIED");
+        drop(permit);
+    }
+
+    #[tokio::test]
     async fn render_queue_is_bounded_by_configured_wait_limit() {
         let mut config = BrowserRenderConfig::default();
         config.max_concurrent_renders = 1;
