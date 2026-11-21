@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-  id-token: write
 
 concurrency:
   group: scorecard-${{ github.workflow }}-${{ github.ref }}
@@ -23,20 +21,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write
-      id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Run Scorecard CLI from the official GHCR image
+        env:
+          GITHUB_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e GITHUB_AUTH_TOKEN \
+            ghcr.io/ossf/scorecard:v5.6.0 \
+            --repo=github.com/VRTcTeam/VRTc-SDK \
+            --format=json > scorecard-results.json
 
-      - name: Run Scorecard
-        uses: ossf/scorecard-action@v2.3.1
+      - name: Upload Scorecard report
+        uses: actions/upload-artifact@v4
         with:
-          results_file: scorecard.sarif
-          results_format: sarif
-          publish_results: true
-
-      - name: Upload Scorecard results
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: scorecard.sarif
+          name: openssf-scorecard-report
+          path: scorecard-results.json
+          if-no-files-found: error
+          retention-days: 14
