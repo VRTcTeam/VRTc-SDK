@@ -72,7 +72,9 @@ impl ArchiveRecord {
         let mut warc = Vec::new();
         warc.extend_from_slice(b"WARC/1.1\r\n");
         warc.extend_from_slice(b"WARC-Type: response\r\n");
-        warc.extend_from_slice(format!("WARC-Record-ID: <urn:uuid:{}>\r\n", self.record_id).as_bytes());
+        warc.extend_from_slice(
+            format!("WARC-Record-ID: <urn:uuid:{}>\r\n", self.record_id).as_bytes(),
+        );
         warc.extend_from_slice(format!("WARC-Date: {}\r\n", self.captured_at).as_bytes());
         warc.extend_from_slice(format!("WARC-Target-URI: {}\r\n", self.target_uri).as_bytes());
         warc.extend_from_slice(b"Content-Type: application/http; msgtype=response\r\n");
@@ -151,7 +153,11 @@ impl ArchiveEngine {
         record.serialized_bytes = serialized_bytes;
 
         let mut state = self.lock_state()?;
-        if state.records.iter().any(|existing| existing.record_id == record.record_id) {
+        if state
+            .records
+            .iter()
+            .any(|existing| existing.record_id == record.record_id)
+        {
             return Err(archive_error(
                 "DUPLICATE_ARCHIVE_RECORD_ID",
                 "WARC record IDs must be unique within the retained archive",
@@ -162,7 +168,9 @@ impl ArchiveEngine {
             || state.bytes_retained.saturating_add(serialized_bytes) > self.config.max_total_bytes
         {
             if let Some(evicted) = state.records.pop_front() {
-                state.bytes_retained = state.bytes_retained.saturating_sub(evicted.serialized_bytes);
+                state.bytes_retained = state
+                    .bytes_retained
+                    .saturating_sub(evicted.serialized_bytes);
                 state.records_evicted = state.records_evicted.saturating_add(1);
             } else {
                 return Err(archive_error(
@@ -180,7 +188,11 @@ impl ArchiveEngine {
 
     pub fn get(&self, record_id: &str) -> Result<Option<ArchiveRecord>, VrtCError> {
         let state = self.lock_state()?;
-        Ok(state.records.iter().find(|record| record.record_id == record_id).cloned())
+        Ok(state
+            .records
+            .iter()
+            .find(|record| record.record_id == record_id)
+            .cloned())
     }
 
     pub fn latest_for_target(&self, target_uri: &str) -> Result<Option<ArchiveRecord>, VrtCError> {
@@ -317,9 +329,10 @@ fn valid_uuid(value: &str) -> bool {
     let bytes = value.as_bytes();
     bytes.len() == 36
         && [8, 13, 18, 23].iter().all(|index| bytes[*index] == b'-')
-        && bytes.iter().enumerate().all(|(index, byte)| {
-            [8, 13, 18, 23].contains(&index) || byte.is_ascii_hexdigit()
-        })
+        && bytes
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| [8, 13, 18, 23].contains(&index) || byte.is_ascii_hexdigit())
 }
 
 fn valid_warc_date(value: &str) -> bool {
@@ -335,8 +348,12 @@ fn valid_warc_date(value: &str) -> bool {
             .iter()
             .enumerate()
             .all(|(index, byte)| [4, 7, 10, 13, 16, 19].contains(&index) || byte.is_ascii_digit())
-        && value[5..7].parse::<u8>().is_ok_and(|month| (1..=12).contains(&month))
-        && value[8..10].parse::<u8>().is_ok_and(|day| (1..=31).contains(&day))
+        && value[5..7]
+            .parse::<u8>()
+            .is_ok_and(|month| (1..=12).contains(&month))
+        && value[8..10]
+            .parse::<u8>()
+            .is_ok_and(|day| (1..=31).contains(&day))
         && value[11..13].parse::<u8>().is_ok_and(|hour| hour <= 23)
         && value[14..16].parse::<u8>().is_ok_and(|minute| minute <= 59)
         && value[17..19].parse::<u8>().is_ok_and(|second| second <= 60)
