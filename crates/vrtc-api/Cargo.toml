@@ -1,0 +1,16 @@
+[package]
+name = "vrtc-api"
+version = "0.1.0"
+description = "HTTP API surface for the VRTc SDK"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+axum.workspace = true
+serde.workspace = true
+vrtc-core = { path = "../vrtc-core" }
+vrtc-search = { path = "../vrtc-search" }
+
+[lints]
+workspace = true
