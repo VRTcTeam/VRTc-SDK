@@ -4,9 +4,8 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use vrtc_core::{
-    Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory,
-    LifecycleState, ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse,
-    VrtCError,
+    Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
+    ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
 use vrtc_registry::Registry;
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
