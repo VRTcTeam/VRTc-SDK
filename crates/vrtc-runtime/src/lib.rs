@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use vrtc_archive::{ArchiveConfig, ArchiveEngine};
-use vrtc_browser::{BrowserRenderConfig, BrowserRenderer};
+use vrtc_browser::{BrowserEngine, BrowserEngineRegistry, BrowserRenderConfig, BrowserRenderer};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -112,6 +112,7 @@ pub struct VrtcRuntime {
     policy: Arc<PolicyEngine>,
     archive: Arc<ArchiveEngine>,
     browser: Arc<BrowserRenderer>,
+    browser_engines: Arc<BrowserEngineRegistry>,
     network: Arc<NetworkEngine>,
     registration_lock: Mutex<()>,
 }
@@ -152,6 +153,8 @@ impl VrtcRuntime {
         let policy = Arc::new(PolicyEngine::new(config.policy)?);
         let archive = Arc::new(ArchiveEngine::new(config.archive)?);
         let browser = Arc::new(BrowserRenderer::new(config.browser, Arc::clone(&policy))?);
+        let browser_engines = Arc::new(BrowserEngineRegistry::new());
+        browser_engines.register(Arc::clone(&browser) as Arc<dyn BrowserEngine>)?;
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -218,6 +221,7 @@ impl VrtcRuntime {
             policy,
             archive,
             browser,
+            browser_engines,
             network,
             registration_lock: Mutex::new(()),
         })
@@ -413,7 +417,13 @@ impl VrtcRuntime {
         Arc::clone(&self.browser)
     }
 
-    /// Shared native DNS, TLS policy, and outbound route-planning engine.\n    #[must_use]\n    pub fn network_engine(&self) -> Arc<NetworkEngine> {\n        Arc::clone(&self.network)\n    }\n\n    /// Shared native DNS, TLS policy, and outbound route-planning engine.
+    /// Registry of trusted in-process browser backends.
+    #[must_use]
+    pub fn browser_engine_registry(&self) -> Arc<BrowserEngineRegistry> {
+        Arc::clone(&self.browser_engines)
+    }
+
+    /// Shared native DNS, TLS policy, and outbound route-planning engine.
     #[must_use]
     pub fn network_engine(&self) -> Arc<NetworkEngine> {
         Arc::clone(&self.network)
@@ -1106,6 +1116,18 @@ mod tests {
         assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
         assert_eq!(engine.kind, "browser-renderer");
         assert_eq!(engine.capabilities[0].id, BROWSER_CAPABILITY_ID);
+    }
+
+    #[test]
+    fn built_in_chromium_backend_is_available_through_runtime_registry() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let info = runtime
+            .browser_engine_registry()
+            .engine_info("browser.chromiumoxide")
+            .unwrap();
+        assert_eq!(info.family, vrtc_browser::BrowserEngineFamily::Chromium);
+        assert!(info.capabilities.renders_fetched_snapshots);
+        assert!(!info.capabilities.supports_live_navigation);
     }
 
     #[test]
