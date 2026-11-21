@@ -247,3 +247,10 @@ The browser crate now exposes a backend-neutral `BrowserEngine` contract, explic
 
 - [M26 Browser Engine Abstraction Specification](docs/specifications/m26-browser-engine-abstraction.md)
 
+
+
+## Browser Render Capacity & Backpressure (M27)
+
+Browser rendering now has a per-renderer concurrency limit and bounded queue wait. The default is two simultaneous render operations with a five-second capacity wait. Requests rejected by input validation or URL policy do not consume a render slot. This is an in-process admission limit, not a distributed quota or browser process pool.
+
+- [M27 Browser Render Capacity Specification](docs/specifications/m27-browser-render-capacity.md)
