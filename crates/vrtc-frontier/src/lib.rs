@@ -148,7 +148,10 @@ impl FrontierEngine {
         request.url = canonical_url.clone();
         let mut state = self.lock_state()?;
         if state.pending.contains_key(&canonical_url)
-            || state.in_flight.values().any(|entry| entry.entry.canonical_url == canonical_url)
+            || state
+                .in_flight
+                .values()
+                .any(|entry| entry.entry.canonical_url == canonical_url)
             || state.completed.contains(&canonical_url)
             || state.failed.contains_key(&canonical_url)
         {
@@ -205,9 +208,14 @@ impl FrontierEngine {
         let Some(canonical_url) = candidate else {
             return Ok(None);
         };
-        let entry = state.pending.remove(&canonical_url).expect("candidate exists");
+        let entry = state
+            .pending
+            .remove(&canonical_url)
+            .expect("candidate exists");
         let leased_until = now + self.config.lease_duration;
-        state.host_next_allowed.insert(entry.host.clone(), now + self.config.per_host_delay);
+        state
+            .host_next_allowed
+            .insert(entry.host.clone(), now + self.config.per_host_delay);
         let id = format!("frontier-lease-{}", state.next_lease);
         state.next_lease = state.next_lease.saturating_add(1);
         let request = entry.request.clone();
@@ -228,7 +236,10 @@ impl FrontierEngine {
     /// Mark a leased URL as successfully processed.
     pub fn complete(&self, lease_id: &str) -> Result<(), VrtCError> {
         let mut state = self.lock_state()?;
-        let entry = state.in_flight.remove(lease_id).ok_or_else(|| lease_not_found(lease_id))?;
+        let entry = state
+            .in_flight
+            .remove(lease_id)
+            .ok_or_else(|| lease_not_found(lease_id))?;
         state.completed.insert(entry.entry.canonical_url);
         Ok(())
     }
@@ -302,12 +313,16 @@ fn recover_expired_locked(
         if let Some(mut leased) = state.in_flight.remove(&id) {
             leased.entry.request.attempts = leased.entry.request.attempts.saturating_add(1);
             if leased.entry.request.attempts >= config.max_attempts {
-                state.failed.insert(leased.entry.canonical_url, leased.entry.request);
+                state
+                    .failed
+                    .insert(leased.entry.canonical_url, leased.entry.request);
             } else {
                 leased.entry.request.not_before = now;
                 leased.entry.sequence = state.next_sequence;
                 state.next_sequence = state.next_sequence.saturating_add(1);
-                state.pending.insert(leased.entry.canonical_url.clone(), leased.entry);
+                state
+                    .pending
+                    .insert(leased.entry.canonical_url.clone(), leased.entry);
                 recovered += 1;
             }
         }
@@ -363,11 +378,15 @@ mod tests {
     fn canonical_urls_are_deduplicated() {
         let frontier = FrontierEngine::new(FrontierConfig::default()).unwrap();
         assert_eq!(
-            frontier.enqueue(CrawlRequest::new("https://example.org/page#section")).unwrap(),
+            frontier
+                .enqueue(CrawlRequest::new("https://example.org/page#section"))
+                .unwrap(),
             EnqueueOutcome::Queued
         );
         assert_eq!(
-            frontier.enqueue(CrawlRequest::new("https://example.org/page")).unwrap(),
+            frontier
+                .enqueue(CrawlRequest::new("https://example.org/page"))
+                .unwrap(),
             EnqueueOutcome::Duplicate
         );
     }
@@ -402,15 +421,24 @@ mod tests {
         })
         .unwrap();
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100);
-        frontier.enqueue(CrawlRequest::new("https://example.org/")).unwrap();
+        frontier
+            .enqueue(CrawlRequest::new("https://example.org/"))
+            .unwrap();
         let lease = frontier.lease_next(now).unwrap().unwrap();
-        assert_eq!(frontier.recover_expired(now + Duration::from_secs(2)).unwrap(), 1);
+        assert_eq!(
+            frontier
+                .recover_expired(now + Duration::from_secs(2))
+                .unwrap(),
+            1
+        );
         let second = frontier
             .lease_next(now + Duration::from_secs(2) + Duration::from_secs(1))
             .unwrap()
             .unwrap();
         assert_eq!(
-            frontier.retry(&second.id, now + Duration::from_secs(4), Duration::ZERO).unwrap(),
+            frontier
+                .retry(&second.id, now + Duration::from_secs(4), Duration::ZERO)
+                .unwrap(),
             RetryOutcome::Exhausted
         );
         assert_eq!(frontier.stats().unwrap().failed, 1);
