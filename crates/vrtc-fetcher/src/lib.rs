@@ -83,12 +83,14 @@ impl FetchEngine {
                 .user_agent(&self.config.user_agent)
                 .resolve(&host, address)
                 .build()
-                .map_err(|_| fetch_error(
-                    "HTTP_CLIENT_INIT_FAILED",
-                    "The HTTP client could not be initialized",
-                    ErrorCategory::Internal,
-                    true,
-                ))?;
+                .map_err(|_| {
+                    fetch_error(
+                        "HTTP_CLIENT_INIT_FAILED",
+                        "The HTTP client could not be initialized",
+                        ErrorCategory::Internal,
+                        true,
+                    )
+                })?;
 
             let response = client
                 .get(current.clone())
@@ -122,18 +124,22 @@ impl FetchEngine {
                     .headers()
                     .get(LOCATION)
                     .and_then(|value| value.to_str().ok())
-                    .ok_or_else(|| fetch_error(
-                        "INVALID_REDIRECT",
-                        "A redirect response did not contain a valid Location header",
+                    .ok_or_else(|| {
+                        fetch_error(
+                            "INVALID_REDIRECT",
+                            "A redirect response did not contain a valid Location header",
+                            ErrorCategory::Validation,
+                            false,
+                        )
+                    })?;
+                let next = current.join(location).map_err(|_| {
+                    fetch_error(
+                        "INVALID_REDIRECT_URL",
+                        "The redirect target is not a valid URL",
                         ErrorCategory::Validation,
                         false,
-                    ))?;
-                let next = current.join(location).map_err(|_| fetch_error(
-                    "INVALID_REDIRECT_URL",
-                    "The redirect target is not a valid URL",
-                    ErrorCategory::Validation,
-                    false,
-                ))?;
+                    )
+                })?;
                 if current.scheme() == "https" && next.scheme() == "http" {
                     return Err(fetch_error(
                         "HTTPS_DOWNGRADE_BLOCKED",
@@ -170,12 +176,14 @@ impl FetchEngine {
             let headers = selected_headers(response.headers());
             let mut response = response;
             let mut body = Vec::new();
-            while let Some(chunk) = response.chunk().await.map_err(|_| fetch_error(
-                "HTTP_BODY_READ_FAILED",
-                "The response body could not be read completely",
-                ErrorCategory::Internal,
-                true,
-            ))? {
+            while let Some(chunk) = response.chunk().await.map_err(|_| {
+                fetch_error(
+                    "HTTP_BODY_READ_FAILED",
+                    "The response body could not be read completely",
+                    ErrorCategory::Internal,
+                    true,
+                )
+            })? {
                 if body.len().saturating_add(chunk.len()) > self.config.max_body_bytes {
                     return Err(fetch_error(
                         "FETCH_BODY_TOO_LARGE",
@@ -209,12 +217,14 @@ impl FetchEngine {
 }
 
 fn validate_url(raw_url: &str) -> Result<Url, VrtCError> {
-    let url = Url::parse(raw_url).map_err(|_| fetch_error(
-        "INVALID_FETCH_URL",
-        "Fetch URL must be an absolute HTTP or HTTPS URL",
-        ErrorCategory::Validation,
-        false,
-    ))?;
+    let url = Url::parse(raw_url).map_err(|_| {
+        fetch_error(
+            "INVALID_FETCH_URL",
+            "Fetch URL must be an absolute HTTP or HTTPS URL",
+            ErrorCategory::Validation,
+            false,
+        )
+    })?;
     if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
         return Err(fetch_error(
             "UNSUPPORTED_FETCH_URL",
@@ -243,27 +253,36 @@ fn validate_url(raw_url: &str) -> Result<Url, VrtCError> {
 }
 
 async fn resolve_public_endpoint(url: &Url) -> Result<(String, SocketAddr), VrtCError> {
-    let host = url.host_str().ok_or_else(|| fetch_error(
-        "FETCH_HOST_MISSING",
-        "Fetch URL does not contain a hostname",
-        ErrorCategory::Validation,
-        false,
-    ))?.to_ascii_lowercase();
-    let port = url.port_or_known_default().ok_or_else(|| fetch_error(
-        "FETCH_PORT_MISSING",
-        "Fetch URL does not contain a valid port",
-        ErrorCategory::Validation,
-        false,
-    ))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| {
+            fetch_error(
+                "FETCH_HOST_MISSING",
+                "Fetch URL does not contain a hostname",
+                ErrorCategory::Validation,
+                false,
+            )
+        })?
+        .to_ascii_lowercase();
+    let port = url.port_or_known_default().ok_or_else(|| {
+        fetch_error(
+            "FETCH_PORT_MISSING",
+            "Fetch URL does not contain a valid port",
+            ErrorCategory::Validation,
+            false,
+        )
+    })?;
 
     let addresses = tokio::net::lookup_host((host.as_str(), port))
         .await
-        .map_err(|_| fetch_error(
-            "FETCH_DNS_FAILED",
-            "The fetch hostname could not be resolved",
-            ErrorCategory::Internal,
-            true,
-        ))?
+        .map_err(|_| {
+            fetch_error(
+                "FETCH_DNS_FAILED",
+                "The fetch hostname could not be resolved",
+                ErrorCategory::Internal,
+                true,
+            )
+        })?
         .collect::<Vec<_>>();
     if addresses.is_empty() || addresses.iter().any(|address| !is_public_ip(address.ip())) {
         return Err(fetch_error(
@@ -317,15 +336,21 @@ fn is_redirect(status: StatusCode) -> bool {
 }
 
 fn selected_headers(headers: &reqwest::header::HeaderMap) -> BTreeMap<String, String> {
-    ["content-type", "content-language", "last-modified", "etag", "cache-control"]
-        .into_iter()
-        .filter_map(|name| {
-            headers
-                .get(name)
-                .and_then(|value| value.to_str().ok())
-                .map(|value| (name.to_owned(), value.to_owned()))
-        })
-        .collect()
+    [
+        "content-type",
+        "content-language",
+        "last-modified",
+        "etag",
+        "cache-control",
+    ]
+    .into_iter()
+    .filter_map(|name| {
+        headers
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .map(|value| (name.to_owned(), value.to_owned()))
+    })
+    .collect()
 }
 
 fn fetch_error(
