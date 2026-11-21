@@ -17,11 +17,11 @@ use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
+use vrtc_queue::{JobQueueEngine, QueueConfig};
 use vrtc_registry::Registry;
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 use vrtc_storage::{StorageConfig, StorageEngine};
-use vrtc_queue::{JobQueueEngine, QueueConfig};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
@@ -103,7 +103,10 @@ impl VrtcRuntime {
             Some(path) => StorageEngine::open_redb(path, config.storage)?,
             None => StorageEngine::memory(config.storage)?,
         });
-        let queue = Arc::new(JobQueueEngine::new(config.queue, Some(Arc::clone(&storage)))?);
+        let queue = Arc::new(JobQueueEngine::new(
+            config.queue,
+            Some(Arc::clone(&storage)),
+        )?);
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -714,7 +717,10 @@ fn queue_engine_descriptor() -> EngineDescriptor {
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
                 ("coordination".to_owned(), "single-runtime".to_owned()),
-                ("persistence".to_owned(), "optional-storage-engine".to_owned()),
+                (
+                    "persistence".to_owned(),
+                    "optional-storage-engine".to_owned(),
+                ),
                 ("delivery".to_owned(), "at-least-once".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
