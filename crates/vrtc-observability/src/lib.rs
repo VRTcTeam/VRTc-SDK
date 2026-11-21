@@ -101,6 +101,7 @@ impl ObservabilityEngine {
             || config.max_label_bytes == 0
             || config.max_event_code_bytes == 0
             || config.histogram_buckets.is_empty()
+            || config.histogram_buckets.len() > 64
             || config.histogram_buckets
                 .iter()
                 .any(|value| !value.is_finite() || *value <= 0.0)
@@ -108,7 +109,7 @@ impl ObservabilityEngine {
         {
             return Err(observability_error(
                 "INVALID_OBSERVABILITY_CONFIG",
-                "Telemetry limits and strictly increasing positive histogram buckets are required",
+                "Telemetry limits and 1-64 strictly increasing positive histogram buckets are required",
                 ErrorCategory::Validation,
             ));
         }
@@ -228,7 +229,7 @@ impl ObservabilityEngine {
                         sum,
                         cumulative_buckets,
                     } => {
-                        *count = count.checked_add(1).ok_or_else(|| {
+                        let next_count = count.checked_add(1).ok_or_else(|| {
                             observability_error(
                                 "HISTOGRAM_COUNT_OVERFLOW",
                                 "Histogram observation count exceeds the supported range",
@@ -243,6 +244,7 @@ impl ObservabilityEngine {
                                 ErrorCategory::ResourceExhausted,
                             ));
                         }
+                        *count = next_count;
                         *sum = next_sum;
                         for (index, boundary) in self.config.histogram_buckets.iter().enumerate() {
                             if observation <= *boundary {
@@ -263,6 +265,7 @@ impl ObservabilityEngine {
 
     pub fn record_event(&self, event: OperationalEvent) -> Result<(), VrtCError> {
         if event.component_id.trim().is_empty()
+            || event.component_id.len() > self.config.max_name_bytes
             || event.code.trim().is_empty()
             || event.component_id.chars().any(char::is_control)
             || event.code.chars().any(char::is_control)
