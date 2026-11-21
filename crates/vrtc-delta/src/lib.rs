@@ -112,7 +112,8 @@ impl DeltaEngine {
         observed_at: SystemTime,
     ) -> Result<DeltaRecord, VrtCError> {
         let url = canonicalize_url(raw_url)?;
-        let byte_size = title.len()
+        let byte_size = title
+            .len()
             .saturating_add(description.len())
             .saturating_add(content.len());
         if byte_size > self.config.max_snapshot_bytes {
@@ -224,11 +225,7 @@ impl DeltaEngine {
     }
 
     /// Return retained versions in chronological order, bounded by limit.
-    pub fn history(
-        &self,
-        raw_url: &str,
-        limit: usize,
-    ) -> Result<Vec<DocumentSnapshot>, VrtCError> {
+    pub fn history(&self, raw_url: &str, limit: usize) -> Result<Vec<DocumentSnapshot>, VrtCError> {
         if limit == 0 || limit > self.config.max_versions_per_url {
             return Err(delta_error(
                 "INVALID_DELTA_HISTORY_LIMIT",
@@ -332,12 +329,7 @@ fn canonicalize_url(raw_url: &str) -> Result<String, VrtCError> {
     Ok(url.to_string())
 }
 
-fn delta_error(
-    code: &str,
-    message: &str,
-    category: ErrorCategory,
-    retryable: bool,
-) -> VrtCError {
+fn delta_error(code: &str, message: &str, category: ErrorCategory, retryable: bool) -> VrtCError {
     VrtCError::new(code, message, category, retryable)
 }
 
@@ -404,13 +396,7 @@ mod tests {
         .unwrap();
         for (second, content) in [(1, "one"), (2, "two"), (3, "three")] {
             engine
-                .record_snapshot(
-                    "https://example.org/",
-                    "T",
-                    "",
-                    content,
-                    observed(second),
-                )
+                .record_snapshot("https://example.org/", "T", "", content, observed(second))
                 .unwrap();
         }
         let history = engine.history("https://example.org/", 2).unwrap();
