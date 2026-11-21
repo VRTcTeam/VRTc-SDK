@@ -56,10 +56,7 @@ pub struct BrowserRenderer {
 }
 
 impl BrowserRenderer {
-    pub fn new(
-        config: BrowserRenderConfig,
-        policy: Arc<PolicyEngine>,
-    ) -> Result<Self, VrtCError> {
+    pub fn new(config: BrowserRenderConfig, policy: Arc<PolicyEngine>) -> Result<Self, VrtCError> {
         if config.operation_timeout_ms == 0 || config.max_html_bytes == 0 {
             return Err(browser_error(
                 "INVALID_BROWSER_CONFIG",
@@ -79,15 +76,13 @@ impl BrowserRenderer {
             ));
         }
 
-        let policy = self
-            .policy
-            .evaluate(&PolicyRequest {
-                url: request.source_url.clone(),
-                origin_url: request.origin_url.clone(),
-                is_crawl: request.is_crawl,
-                crawl_depth: request.crawl_depth,
-                robots_allowed: request.robots_allowed,
-            })?;
+        let policy = self.policy.evaluate(&PolicyRequest {
+            url: request.source_url.clone(),
+            origin_url: request.origin_url.clone(),
+            is_crawl: request.is_crawl,
+            crawl_depth: request.crawl_depth,
+            robots_allowed: request.robots_allowed,
+        })?;
         if policy.outcome != PolicyOutcome::Allow {
             return Err(browser_error(
                 "BROWSER_POLICY_DENIED",
@@ -119,22 +114,23 @@ impl BrowserRenderer {
         })?;
 
         let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
-        let (mut browser, mut handler) = timeout(operation_timeout, Browser::launch(browser_config))
-            .await
-            .map_err(|_| {
-                browser_error(
-                    "BROWSER_LAUNCH_TIMEOUT",
-                    "Browser launch exceeded the configured timeout",
-                    ErrorCategory::ResourceExhausted,
-                )
-            })?
-            .map_err(|error| {
-                browser_error(
-                    "BROWSER_LAUNCH_FAILED",
-                    &error.to_string(),
-                    ErrorCategory::Internal,
-                )
-            })?;
+        let (mut browser, mut handler) =
+            timeout(operation_timeout, Browser::launch(browser_config))
+                .await
+                .map_err(|_| {
+                    browser_error(
+                        "BROWSER_LAUNCH_TIMEOUT",
+                        "Browser launch exceeded the configured timeout",
+                        ErrorCategory::ResourceExhausted,
+                    )
+                })?
+                .map_err(|error| {
+                    browser_error(
+                        "BROWSER_LAUNCH_FAILED",
+                        &error.to_string(),
+                        ErrorCategory::Internal,
+                    )
+                })?;
 
         let handler_task = tokio::spawn(async move {
             while let Some(event) = handler.next().await {
@@ -294,8 +290,7 @@ mod tests {
         let html = "<html><head><title>Offline</title></head><body>snapshot</body></html>";
         let safe = apply_offline_csp(html);
         assert!(safe.contains("default-src 'none'"));
-        assert!(safe.find("Content-Security-Policy").unwrap()
-            < safe.find("<title>").unwrap());
+        assert!(safe.find("Content-Security-Policy").unwrap() < safe.find("<title>").unwrap());
     }
 
     #[test]
