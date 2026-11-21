@@ -148,15 +148,33 @@ impl NetworkEngine {
             tokio::net::lookup_host((hostname, port)),
         )
         .await
-        .map_err(|_| network_error("DNS_TIMEOUT", "DNS lookup exceeded its time limit", ErrorCategory::Timeout))?
-        .map_err(|_| network_error("DNS_LOOKUP_FAILED", "DNS lookup failed", ErrorCategory::Internal))?;
+        .map_err(|_| {
+            network_error(
+                "DNS_TIMEOUT",
+                "DNS lookup exceeded its time limit",
+                ErrorCategory::Timeout,
+            )
+        })?
+        .map_err(|_| {
+            network_error(
+                "DNS_LOOKUP_FAILED",
+                "DNS lookup failed",
+                ErrorCategory::Internal,
+            )
+        })?;
         let mut addresses: Vec<_> = lookup.collect();
         addresses.sort();
         addresses.dedup();
         if addresses.is_empty() {
-            return Err(network_error("DNS_NO_RECORDS", "DNS returned no usable addresses", ErrorCategory::NotFound));
+            return Err(network_error(
+                "DNS_NO_RECORDS",
+                "DNS returned no usable addresses",
+                ErrorCategory::NotFound,
+            ));
         }
-        if self.config.require_public_addresses && addresses.iter().any(|address| !is_public_ip(address.ip())) {
+        if self.config.require_public_addresses
+            && addresses.iter().any(|address| !is_public_ip(address.ip()))
+        {
             return Err(network_error(
                 "DNS_NON_PUBLIC_ADDRESS_BLOCKED",
                 "DNS returned a non-public address; the entire answer set was rejected",
@@ -173,11 +191,13 @@ impl NetworkEngine {
     /// Select a configured proxy only for explicitly matched host rules.
     /// This is a routing decision; the transport must apply it explicitly.
     pub fn plan_route(&self, raw_url: &str) -> Result<NetworkRoute, VrtCError> {
-        let url = Url::parse(raw_url).map_err(|_| network_error(
-            "INVALID_ROUTE_URL",
-            "Route target must be an absolute HTTP or HTTPS URL",
-            ErrorCategory::Validation,
-        ))?;
+        let url = Url::parse(raw_url).map_err(|_| {
+            network_error(
+                "INVALID_ROUTE_URL",
+                "Route target must be an absolute HTTP or HTTPS URL",
+                ErrorCategory::Validation,
+            )
+        })?;
         if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
             return Err(network_error(
                 "UNSUPPORTED_ROUTE_SCHEME",
@@ -188,8 +208,17 @@ impl NetworkEngine {
         if url.scheme() == "https" {
             self.config.tls.validate()?;
         }
-        let host = url.host_str().unwrap_or_default().trim_end_matches('.').to_ascii_lowercase();
-        let proxy = if self.config.proxy_hosts.iter().any(|rule| host_matches(&host, rule)) {
+        let host = url
+            .host_str()
+            .unwrap_or_default()
+            .trim_end_matches('.')
+            .to_ascii_lowercase();
+        let proxy = if self
+            .config
+            .proxy_hosts
+            .iter()
+            .any(|rule| host_matches(&host, rule))
+        {
             self.config.proxies.iter().find(|proxy| proxy.enabled)
         } else {
             None
@@ -205,14 +234,18 @@ impl NetworkEngine {
 }
 
 fn validate_proxy_url(raw: &str) -> Result<(), VrtCError> {
-    let url = Url::parse(raw).map_err(|_| network_error(
-        "INVALID_PROXY_URL",
-        "Proxy endpoint must be an absolute HTTP or HTTPS URL",
-        ErrorCategory::Validation,
-    ))?;
+    let url = Url::parse(raw).map_err(|_| {
+        network_error(
+            "INVALID_PROXY_URL",
+            "Proxy endpoint must be an absolute HTTP or HTTPS URL",
+            ErrorCategory::Validation,
+        )
+    })?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host_str().is_none()
         || url.port_or_known_default().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
         || url.query().is_some()
         || url.fragment().is_some()
     {
@@ -226,8 +259,15 @@ fn validate_proxy_url(raw: &str) -> Result<(), VrtCError> {
 }
 
 fn host_matches(host: &str, rule: &str) -> bool {
-    let rule = rule.trim().trim_start_matches("*.").trim_end_matches('.').to_ascii_lowercase();
-    host == rule || host.strip_suffix(&rule).is_some_and(|prefix| prefix.ends_with('.'))
+    let rule = rule
+        .trim()
+        .trim_start_matches("*.")
+        .trim_end_matches('.')
+        .to_ascii_lowercase();
+    host == rule
+        || host
+            .strip_suffix(&rule)
+            .is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 fn is_public_ip(ip: IpAddr) -> bool {
@@ -259,7 +299,12 @@ fn is_public_ip(ip: IpAddr) -> bool {
 }
 
 fn network_error(code: &str, message: &str, category: ErrorCategory) -> VrtCError {
-    VrtCError::new(code, message, category, category == ErrorCategory::Timeout || category == ErrorCategory::Internal)
+    VrtCError::new(
+        code,
+        message,
+        category,
+        category == ErrorCategory::Timeout || category == ErrorCategory::Internal,
+    )
 }
 
 #[cfg(test)]
@@ -272,7 +317,10 @@ mod tests {
             require_certificate_validation: false,
             ..TlsPolicy::default()
         };
-        assert_eq!(policy.validate().unwrap_err().code, "TLS_CERTIFICATE_VALIDATION_REQUIRED");
+        assert_eq!(
+            policy.validate().unwrap_err().code,
+            "TLS_CERTIFICATE_VALIDATION_REQUIRED"
+        );
     }
 
     #[test]
@@ -285,16 +333,31 @@ mod tests {
             }],
             proxy_hosts: vec!["*.example.org".into()],
             ..NetworkConfig::default()
-        }).unwrap();
-        assert_eq!(engine.plan_route("https://www.example.org/path").unwrap().mode,
-            RouteMode::Proxy { proxy_id: "egress-a".into() });
-        assert_eq!(engine.plan_route("https://other.test/").unwrap().mode, RouteMode::Direct);
+        })
+        .unwrap();
+        assert_eq!(
+            engine
+                .plan_route("https://www.example.org/path")
+                .unwrap()
+                .mode,
+            RouteMode::Proxy {
+                proxy_id: "egress-a".into()
+            }
+        );
+        assert_eq!(
+            engine.plan_route("https://other.test/").unwrap().mode,
+            RouteMode::Direct
+        );
     }
 
     #[test]
     fn rejects_invalid_proxy_configuration() {
         let result = NetworkEngine::new(NetworkConfig {
-            proxies: vec![ProxyEndpoint { id: "bad".into(), url: "file:///tmp/proxy".into(), enabled: true }],
+            proxies: vec![ProxyEndpoint {
+                id: "bad".into(),
+                url: "file:///tmp/proxy".into(),
+                enabled: true,
+            }],
             ..NetworkConfig::default()
         });
         assert!(result.is_err());
