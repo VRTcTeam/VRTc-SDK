@@ -11,13 +11,18 @@ permissions:
 
 jobs:
   dependency-review:
-    name: Review dependency changes
+    name: Dependency review (Dependency Graph prerequisite)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Dependency review
+      - name: Review dependency changes
         uses: actions/dependency-review-action@v4
+        continue-on-error: true
         with:
           fail-on-severity: high
+
+      - name: Explain GitHub prerequisite
+        if: ${{ steps.dependency_review.outcome == 'failure' }}
+        run: echo "Dependency Review is currently non-blocking until GitHub Dependency Graph is enabled in repository Security settings."
