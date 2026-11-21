@@ -11,6 +11,7 @@ members = [
     "crates/vrtc-retrieval",
     "crates/vrtc-feedback",
     "crates/vrtc-crawler",
+    "crates/vrtc-delta",
     "crates/vrtc-runtime",
     "crates/vrtc-api",
     "crates/vrtc-provider-geekflare",
