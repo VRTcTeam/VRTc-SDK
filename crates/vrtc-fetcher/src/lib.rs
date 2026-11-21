@@ -55,7 +55,10 @@ pub struct FetchEngine {
 
 impl FetchEngine {
     pub fn new(config: FetchConfig) -> Result<Self, VrtCError> {
-        Self::with_network(config, Arc::new(NetworkEngine::new(NetworkConfig::default())?))
+        Self::with_network(
+            config,
+            Arc::new(NetworkEngine::new(NetworkConfig::default())?),
+        )
     }
 
     /// Create a Fetcher that shares the runtime's configured network policy.
@@ -79,14 +82,17 @@ impl FetchEngine {
     }
 
     async fn resolve_public_endpoint(&self, url: &Url) -> Result<(String, SocketAddr), VrtCError> {
-        let host = url.host_str().ok_or_else(|| {
-            fetch_error(
-                "FETCH_HOST_MISSING",
-                "Fetch URL does not contain a hostname",
-                ErrorCategory::Validation,
-                false,
-            )
-        })?.to_ascii_lowercase();
+        let host = url
+            .host_str()
+            .ok_or_else(|| {
+                fetch_error(
+                    "FETCH_HOST_MISSING",
+                    "Fetch URL does not contain a hostname",
+                    ErrorCategory::Validation,
+                    false,
+                )
+            })?
+            .to_ascii_lowercase();
         let port = url.port_or_known_default().ok_or_else(|| {
             fetch_error(
                 "FETCH_PORT_MISSING",
