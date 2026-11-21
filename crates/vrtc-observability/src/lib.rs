@@ -222,44 +222,42 @@ impl ObservabilityEngine {
                 });
                 Ok(())
             }
-            std::collections::btree_map::Entry::Occupied(mut entry) => {
-                match entry.get_mut() {
-                    MetricValue::Histogram {
+            std::collections::btree_map::Entry::Occupied(mut entry) => match entry.get_mut() {
+                MetricValue::Histogram {
                         count,
                         sum,
                         cumulative_buckets,
                     } => {
-                        let next_count = count.checked_add(1).ok_or_else(|| {
-                            observability_error(
-                                "HISTOGRAM_COUNT_OVERFLOW",
-                                "Histogram observation count exceeds the supported range",
-                                ErrorCategory::ResourceExhausted,
-                            )
-                        })?;
-                        let next_sum = *sum + observation;
-                        if !next_sum.is_finite() {
-                            return Err(observability_error(
-                                "HISTOGRAM_SUM_OVERFLOW",
-                                "Histogram sum exceeds the supported range",
-                                ErrorCategory::ResourceExhausted,
-                            ));
-                        }
-                        *count = next_count;
-                        *sum = next_sum;
-                        for (index, boundary) in self.config.histogram_buckets.iter().enumerate() {
-                            if observation <= *boundary {
-                                cumulative_buckets[index] += 1;
-                            }
-                        }
-                        Ok(())
+                    let next_count = count.checked_add(1).ok_or_else(|| {
+                        observability_error(
+                            "HISTOGRAM_COUNT_OVERFLOW",
+                            "Histogram observation count exceeds the supported range",
+                            ErrorCategory::ResourceExhausted,
+                        )
+                    })?;
+                    let next_sum = *sum + observation;
+                    if !next_sum.is_finite() {
+                        return Err(observability_error(
+                            "HISTOGRAM_SUM_OVERFLOW",
+                            "Histogram sum exceeds the supported range",
+                            ErrorCategory::ResourceExhausted,
+                        ));
                     }
-                    _ => Err(observability_error(
-                        "METRIC_TYPE_CONFLICT",
-                        "Metric name and labels are already registered with another type",
-                        ErrorCategory::ContractIncompatible,
-                    )),
+                    *count = next_count;
+                    *sum = next_sum;
+                    for (index, boundary) in self.config.histogram_buckets.iter().enumerate() {
+                        if observation <= *boundary {
+                            cumulative_buckets[index] += 1;
+                        }
+                    }
+                    Ok(())
                 }
-            }
+                _ => Err(observability_error(
+                    "METRIC_TYPE_CONFLICT",
+                    "Metric name and labels are already registered with another type",
+                    ErrorCategory::ContractIncompatible,
+                )),
+            },
         }
     }
 
@@ -402,7 +400,10 @@ mod tests {
             .increment_counter("requests_total", BTreeMap::new(), 1)
             .unwrap();
         assert_eq!(
-            engine.set_gauge("requests_total", BTreeMap::new(), 1.0).unwrap_err().code,
+            engine
+                .set_gauge("requests_total", BTreeMap::new(), 1.0)
+                .unwrap_err()
+                .code,
             "METRIC_TYPE_CONFLICT"
         );
     }
