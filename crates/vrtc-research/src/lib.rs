@@ -307,8 +307,17 @@ mod tests {
         let planner = ResearchPlanner::new(ResearchConfig::default()).unwrap();
         let plan = planner.plan(request(true, true)).unwrap();
         assert_eq!(plan.parallel_groups.get(&1).unwrap().len(), 2);
-        assert!(plan.execution_order.iter().position(|id| id == "search").unwrap()
-            < plan.execution_order.iter().position(|id| id == "retrieve").unwrap());
+        assert!(
+            plan.execution_order
+                .iter()
+                .position(|id| id == "search")
+                .unwrap()
+                < plan
+                    .execution_order
+                    .iter()
+                    .position(|id| id == "retrieve")
+                    .unwrap()
+        );
         assert!(plan.steps.iter().any(|item| item.id == "human-review"));
     }
 
