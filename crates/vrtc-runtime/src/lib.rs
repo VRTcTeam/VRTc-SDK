@@ -68,6 +68,19 @@ impl VrtcRuntime {
             .for_component(provider.id()));
         }
 
+        if !descriptor.capabilities.iter().any(|capability| {
+            capability.id == SEARCH_CAPABILITY_ID
+                && capability.operations.iter().any(|operation| operation == "search")
+        }) {
+            return Err(VrtCError::new(
+                "SEARCH_CAPABILITY_MISSING",
+                "Search provider descriptor must declare the search.query capability and search operation",
+                ErrorCategory::Validation,
+                false,
+            )
+            .for_component(&descriptor.id));
+        }
+
         if self.search.provider_ids().iter().any(|id| id == &descriptor.id) {
             return Err(VrtCError::new(
                 "DUPLICATE_PROVIDER_ID",
@@ -79,8 +92,12 @@ impl VrtcRuntime {
         }
 
         match source {
-            RegistrationSource::Static => self.registry.register_static_provider(descriptor.clone())?,
-            RegistrationSource::Dynamic => self.registry.register_dynamic_provider(descriptor.clone())?,
+            RegistrationSource::Static => {
+                self.registry.register_static_provider(descriptor.clone())?
+            }
+            RegistrationSource::Dynamic => {
+                self.registry.register_dynamic_provider(descriptor.clone())?
+            }
         }
         self.registry.activate_provider(&descriptor.id)?;
 
@@ -193,14 +210,22 @@ mod tests {
         runtime
             .register_search_provider(
                 provider_descriptor("provider.runtime.stub"),
-                Arc::new(StubProvider { id: "provider.runtime.stub" }),
+                Arc::new(StubProvider {
+                    id: "provider.runtime.stub",
+                }),
                 RegistrationSource::Dynamic,
             )
             .unwrap();
 
         let registered = runtime.registry().provider("provider.runtime.stub").unwrap();
         assert_eq!(registered.lifecycle_state, LifecycleState::Ready);
-        assert_eq!(runtime.registry().providers_for_capability(SEARCH_CAPABILITY_ID).len(), 1);
+        assert_eq!(
+            runtime
+                .registry()
+                .providers_for_capability(SEARCH_CAPABILITY_ID)
+                .len(),
+            1
+        );
 
         let response = runtime.search(SearchRequest::new("runtime")).await.unwrap();
         assert_eq!(response.results.len(), 1);
@@ -213,7 +238,9 @@ mod tests {
         let error = runtime
             .register_search_provider(
                 provider_descriptor("provider.descriptor"),
-                Arc::new(StubProvider { id: "provider.adapter" }),
+                Arc::new(StubProvider {
+                    id: "provider.adapter",
+                }),
                 RegistrationSource::Static,
             )
             .unwrap_err();
