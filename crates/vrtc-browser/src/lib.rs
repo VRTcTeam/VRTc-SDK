@@ -539,15 +539,13 @@ mod engine_abstraction_tests {
     fn rejects_zero_browser_concurrency_or_queue_wait() {
         let mut config = BrowserRenderConfig::default();
         config.max_concurrent_renders = 0;
-        assert_eq!(
+        assert!(matches!(
             BrowserRenderer::new(
                 config,
                 Arc::new(PolicyEngine::new(Default::default()).unwrap()),
-            )
-            .unwrap_err()
-            .code,
-            "INVALID_BROWSER_CONFIG"
-        );
+            ),
+            Err(error) if error.code == "INVALID_BROWSER_CONFIG"
+        ));
 
         let mut config = BrowserRenderConfig::default();
         config.max_queue_wait_ms = 0;
