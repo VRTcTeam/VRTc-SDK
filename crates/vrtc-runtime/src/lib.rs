@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use vrtc_archive::{ArchiveConfig, ArchiveEngine};
 use vrtc_browser::{BrowserRenderConfig, BrowserRenderer};
+use vrtc_network::{NetworkConfig, NetworkEngine};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -64,6 +65,8 @@ const ARCHIVE_ENGINE_ID: &str = "engine.vrtc.archive";
 const ARCHIVE_CAPABILITY_ID: &str = "archive.warc";
 const BROWSER_ENGINE_ID: &str = "engine.vrtc.browser";
 const BROWSER_CAPABILITY_ID: &str = "browser.render";
+const NETWORK_ENGINE_ID: &str = "engine.vrtc.network";
+const NETWORK_CAPABILITY_ID: &str = "network.resolve-route";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -86,6 +89,7 @@ pub struct RuntimeConfig {
     pub policy: PolicyConfig,
     pub archive: ArchiveConfig,
     pub browser: BrowserRenderConfig,
+    pub network: NetworkConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -108,6 +112,7 @@ pub struct VrtcRuntime {
     policy: Arc<PolicyEngine>,
     archive: Arc<ArchiveEngine>,
     browser: Arc<BrowserRenderer>,
+    network: Arc<NetworkEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -143,6 +148,7 @@ impl VrtcRuntime {
         let policy = Arc::new(PolicyEngine::new(config.policy)?);
         let archive = Arc::new(ArchiveEngine::new(config.archive)?);
         let browser = Arc::new(BrowserRenderer::new(config.browser, Arc::clone(&policy))?);
+        let network = Arc::new(NetworkEngine::new(config.network)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -187,6 +193,8 @@ impl VrtcRuntime {
         registry.activate_engine(ARCHIVE_ENGINE_ID)?;
         registry.register_static_engine(browser_engine_descriptor())?;
         registry.activate_engine(BROWSER_ENGINE_ID)?;
+        registry.register_static_engine(network_engine_descriptor())?;
+        registry.activate_engine(NETWORK_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -207,6 +215,7 @@ impl VrtcRuntime {
             policy,
             archive,
             browser,
+            network,
             registration_lock: Mutex::new(()),
         })
     }
@@ -401,7 +410,7 @@ impl VrtcRuntime {
         Arc::clone(&self.browser)
     }
 
-    /// Execute a search through the runtime-owned Search Engine.
+    /// Shared native DNS, TLS policy, and outbound route-planning engine.\n    #[must_use]\n    pub fn network_engine(&self) -> Arc<NetworkEngine> {\n        Arc::clone(&self.network)\n    }\n\n    /// Execute a search through the runtime-owned Search Engine.
     pub async fn search(&self, request: SearchRequest) -> Result<SearchResponse, VrtCError> {
         self.search.search(request).await
     }
@@ -978,6 +987,35 @@ fn browser_engine_descriptor() -> EngineDescriptor {
                 ("javascript".to_owned(), "disabled".to_owned()),
                 ("policy".to_owned(), "native-policy-required".to_owned()),
                 ("input".to_owned(), "bounded-html".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
+fn network_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: NETWORK_ENGINE_ID.to_owned(),
+        name: "VRTc Native DNS, TLS & Network Routing Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "network-infrastructure".to_owned(),
+        capabilities: vec![Capability {
+            id: NETWORK_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "resolve_dns".to_owned(),
+                "validate_tls_policy".to_owned(),
+                "plan_outbound_route".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("dns".to_owned(), "bounded-timeout-public-address-policy".to_owned()),
+                ("tls".to_owned(), "certificate-validation-required".to_owned()),
+                ("proxy".to_owned(), "explicit-host-rules-route-plan-only".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
         }],
