@@ -6,6 +6,7 @@ members = [
     "crates/vrtc-search",
     "crates/vrtc-frontier",
     "crates/vrtc-fetcher",
+    "crates/vrtc-extract",
     "crates/vrtc-runtime",
     "crates/vrtc-api",
     "crates/vrtc-provider-geekflare",
