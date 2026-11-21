@@ -1,0 +1,14 @@
+[package]
+name = "vrtc-storage"
+version = "0.1.0"
+description = "Native namespaced transactional storage engine for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+redb = "=2.6.4"
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
