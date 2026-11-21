@@ -276,9 +276,7 @@ impl FeedbackEngine {
             })
             .map(|judgment| judgment.relevance)
             .collect::<Vec<_>>();
-        if labels.len() < 2
-            || labels.iter().max().unwrap_or(&0).saturating_sub(*labels.iter().min().unwrap_or(&0)) < 2
-        {
+        if !has_material_disagreement(&labels) {
             return Err(feedback_error(
                 "ADJUDICATION_NOT_REQUIRED",
                 "Adjudication requires at least two reviewer judgments with a material disagreement",
@@ -436,10 +434,7 @@ fn refresh_task_status(state: &mut FeedbackState, task_id: &str) -> Result<(), V
         if reviewer_labels.is_empty() && !adjudicated {
             complete = false;
         }
-        if !adjudicated
-            && reviewer_labels.len() >= 2
-            && reviewer_labels.iter().max().unwrap_or(&0).saturating_sub(*reviewer_labels.iter().min().unwrap_or(&0)) >= 2
-        {
+        if !adjudicated && has_material_disagreement(&reviewer_labels) {
             needs_adjudication = true;
         }
     }
@@ -457,6 +452,15 @@ fn refresh_task_status(state: &mut FeedbackState, task_id: &str) -> Result<(), V
         task.status = status;
     }
     Ok(())
+}
+
+fn has_material_disagreement(labels: &[u8]) -> bool {
+    if labels.len() < 2 {
+        return false;
+    }
+    let highest = labels.iter().copied().max().unwrap_or_default();
+    let lowest = labels.iter().copied().min().unwrap_or_default();
+    highest.saturating_sub(lowest) >= 2
 }
 
 fn aggregate_relevance(judgments: &[RelevanceJudgment]) -> BTreeMap<String, f64> {
