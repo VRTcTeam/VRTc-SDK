@@ -23,12 +23,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verify project specification
+        shell: bash
         run: |
+          set -euo pipefail
           test -s README.md
           grep -q "VRTc" README.md
+          test -d .github/workflows
 
-      - name: Check whitespace errors
-        run: git show --check --oneline HEAD
+      - name: Check committed whitespace
+        run: git diff-tree --check HEAD
 
   rust-workspace:
     name: Rust workspace
@@ -42,6 +45,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
 
       - name: Check formatting
         run: cargo fmt --all -- --check
