@@ -541,8 +541,10 @@ mod engine_abstraction_tests {
 
     #[test]
     fn rejects_zero_browser_concurrency_or_queue_wait() {
-        let mut config = BrowserRenderConfig::default();
-        config.max_concurrent_renders = 0;
+        let config = BrowserRenderConfig {
+            max_concurrent_renders: 0,
+            ..BrowserRenderConfig::default()
+        };
         assert!(matches!(
             BrowserRenderer::new(
                 config,
@@ -551,8 +553,10 @@ mod engine_abstraction_tests {
             Err(error) if error.code == "INVALID_BROWSER_CONFIG"
         ));
 
-        let mut config = BrowserRenderConfig::default();
-        config.max_queue_wait_ms = 0;
+        let config = BrowserRenderConfig {
+            max_queue_wait_ms: 0,
+            ..BrowserRenderConfig::default()
+        };
         assert!(matches!(
             BrowserRenderer::new(
                 config,
@@ -564,9 +568,11 @@ mod engine_abstraction_tests {
 
     #[tokio::test]
     async fn policy_denial_happens_before_render_capacity_admission() {
-        let mut config = BrowserRenderConfig::default();
-        config.max_concurrent_renders = 1;
-        config.max_queue_wait_ms = 10;
+        let config = BrowserRenderConfig {
+            max_concurrent_renders: 1,
+            max_queue_wait_ms: 10,
+            ..BrowserRenderConfig::default()
+        };
         let renderer = BrowserRenderer::new(
             config,
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
