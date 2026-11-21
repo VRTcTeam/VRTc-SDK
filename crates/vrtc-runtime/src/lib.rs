@@ -7,7 +7,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use vrtc_archive::{ArchiveConfig, ArchiveEngine};
 use vrtc_browser::{BrowserRenderConfig, BrowserRenderer};
-use vrtc_network::{NetworkConfig, NetworkEngine};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -20,6 +19,7 @@ use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
+use vrtc_network::{NetworkConfig, NetworkEngine};
 use vrtc_observability::{ObservabilityConfig, ObservabilityEngine};
 use vrtc_policy::{PolicyConfig, PolicyEngine};
 use vrtc_queue::{JobQueueEngine, QueueConfig};
@@ -1013,9 +1013,18 @@ fn network_engine_descriptor() -> EngineDescriptor {
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
-                ("dns".to_owned(), "bounded-timeout-public-address-policy".to_owned()),
-                ("tls".to_owned(), "certificate-validation-required".to_owned()),
-                ("proxy".to_owned(), "explicit-host-rules-route-plan-only".to_owned()),
+                (
+                    "dns".to_owned(),
+                    "bounded-timeout-public-address-policy".to_owned(),
+                ),
+                (
+                    "tls".to_owned(),
+                    "certificate-validation-required".to_owned(),
+                ),
+                (
+                    "proxy".to_owned(),
+                    "explicit-host-rules-route-plan-only".to_owned(),
+                ),
             ]),
             availability: CapabilityAvailability::Available,
         }],
@@ -1305,9 +1314,12 @@ mod tests {
         assert_eq!(engine.kind, "network-infrastructure");
         assert_eq!(engine.capabilities[0].id, NETWORK_CAPABILITY_ID);
         assert_eq!(
-            runtime.network_engine().plan_route("https://example.org").unwrap().mode,
+            runtime
+                .network_engine()
+                .plan_route("https://example.org")
+                .unwrap()
+                .mode,
             vrtc_network::RouteMode::Direct
         );
     }
-
 }
