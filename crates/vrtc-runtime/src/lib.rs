@@ -9,6 +9,7 @@ use vrtc_core::{
 };
 use vrtc_crawler::{CrawlerConfig, CrawlerEngine};
 use vrtc_delta::{DeltaConfig, DeltaEngine};
+use vrtc_evidence::{EvidenceConfig, EvidenceEngine};
 use vrtc_extract::{ExtractionConfig, ExtractionEngine};
 use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
@@ -38,6 +39,8 @@ const CRAWLER_ENGINE_ID: &str = "engine.vrtc.crawler";
 const CRAWLER_CAPABILITY_ID: &str = "crawl.execute";
 const DELTA_ENGINE_ID: &str = "engine.vrtc.delta";
 const DELTA_CAPABILITY_ID: &str = "content.delta";
+const EVIDENCE_ENGINE_ID: &str = "engine.vrtc.evidence";
+const EVIDENCE_CAPABILITY_ID: &str = "evidence.verify";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -51,6 +54,7 @@ pub struct RuntimeConfig {
     pub feedback: FeedbackConfig,
     pub crawler: CrawlerConfig,
     pub delta: DeltaConfig,
+    pub evidence: EvidenceConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -65,6 +69,7 @@ pub struct VrtcRuntime {
     feedback: Arc<FeedbackEngine>,
     crawler: Arc<CrawlerEngine>,
     delta: Arc<DeltaEngine>,
+    evidence: Arc<EvidenceEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -80,6 +85,7 @@ impl VrtcRuntime {
         let retrieval = Arc::new(RetrievalEngine::new(Arc::clone(&index), config.retrieval)?);
         let feedback = Arc::new(FeedbackEngine::new(config.feedback)?);
         let delta = Arc::new(DeltaEngine::new(config.delta)?);
+        let evidence = Arc::new(EvidenceEngine::new(config.evidence)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -108,6 +114,8 @@ impl VrtcRuntime {
         registry.activate_engine(CRAWLER_ENGINE_ID)?;
         registry.register_static_engine(delta_engine_descriptor())?;
         registry.activate_engine(DELTA_ENGINE_ID)?;
+        registry.register_static_engine(evidence_engine_descriptor())?;
+        registry.activate_engine(EVIDENCE_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -120,6 +128,7 @@ impl VrtcRuntime {
             feedback,
             crawler,
             delta,
+            evidence,
             registration_lock: Mutex::new(()),
         })
     }
@@ -264,6 +273,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn delta_engine(&self) -> Arc<DeltaEngine> {
         Arc::clone(&self.delta)
+    }
+
+    /// Shared native evidence provenance and claim-verification handle.
+    #[must_use]
+    pub fn evidence_engine(&self) -> Arc<EvidenceEngine> {
+        Arc::clone(&self.evidence)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -571,6 +586,37 @@ fn delta_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn evidence_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: EVIDENCE_ENGINE_ID.to_owned(),
+        name: "VRTc Native Evidence & Verification Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "evidence".to_owned(),
+        capabilities: vec![Capability {
+            id: EVIDENCE_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "create_claim".to_owned(),
+                "attach_evidence".to_owned(),
+                "assess_evidence".to_owned(),
+                "verify_claim".to_owned(),
+                "read_provenance".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("assessment".to_owned(), "explicit-not-inferred".to_owned()),
+                ("provenance".to_owned(), "source-url-content-hash-retrieval-time".to_owned()),
+                ("storage".to_owned(), "bounded-in-memory-ledger".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -625,6 +671,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_evidence_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(EVIDENCE_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "evidence");
+        assert_eq!(engine.capabilities[0].id, EVIDENCE_CAPABILITY_ID);
     }
 
     #[test]
