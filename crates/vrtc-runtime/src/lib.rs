@@ -423,7 +423,7 @@ impl VrtcRuntime {
         Arc::clone(&self.browser_engines)
     }
 
-    /// Shared native DNS, TLS policy, and outbound route-planning engine.\n    #[must_use]\n    pub fn network_engine(&self) -> Arc<NetworkEngine> {\n        Arc::clone(&self.network)\n    }\n\n    /// Shared native DNS, TLS policy, and outbound route-planning engine.
+    /// Shared native DNS, TLS policy, and outbound route-planning engine.
     #[must_use]
     pub fn network_engine(&self) -> Arc<NetworkEngine> {
         Arc::clone(&self.network)
