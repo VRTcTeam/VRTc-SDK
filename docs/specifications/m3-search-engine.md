@@ -18,8 +18,9 @@ The VRTc Search Engine is the VRTc-owned coordinator for query validation, provi
 5. Isolate provider errors so one failing adapter does not discard successful responses.
 6. Normalize provider provenance and discard non-finite scores.
 7. Apply language, domain, and publication-date filters.
-8. Deduplicate equivalent URLs, rank by descending relevance score, and cap the final result count.
+8. Deduplicate equivalent URLs, rank by VRTc-owned Reciprocal Rank Fusion (RRF), and cap the final result count.
 9. Return queried-provider identifiers and structured provider failures with the results.
+10. Delegate multi-source aggregation to the native Metasearch capability, which uses Reciprocal Rank Fusion rather than comparing raw scores from unrelated providers.
 
 ## Core request and response
 
@@ -56,4 +57,4 @@ Provider adapters must respect operator authorization, applicable service terms,
 
 ## Current boundaries
 
-This milestone does not yet provide a built-in web index, a browser crawler, an HTTP API, API keys, billing, or language-specific remote clients. Those belong to subsequent milestones.
+This milestone does not provide a built-in global web index or browser crawler. Native Metasearch is specified in [M12](m12-native-metasearch.md).
