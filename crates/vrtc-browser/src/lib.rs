@@ -253,7 +253,6 @@ impl BrowserRenderer {
     }
 }
 
-
 /// Browser implementation family. Declaring a family does not imply that its
 /// backend is installed or available at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
