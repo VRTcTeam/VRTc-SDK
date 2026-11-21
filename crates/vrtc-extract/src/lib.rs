@@ -236,7 +236,7 @@ fn extract_blocks(candidate: ElementRef<'_>) -> (String, String) {
             "h6" => format!("###### {text}"),
             "li" => format!("- {text}"),
             "blockquote" => format!("> {text}"),
-            "pre" => format!("\n\`\`\`\n{text}\n\`\`\`"),
+            "pre" => format!("\n~~~\n{text}\n~~~"),
             _ => text.clone(),
         };
         plain_blocks.push(text);
