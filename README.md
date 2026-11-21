@@ -240,3 +240,10 @@ VRTc evaluates engines, providers, and supporting technologies through the seven
 - [Technology Evaluation Matrix](docs/research/technology-evaluation-matrix.md)
 
 External providers are optional integrations, not mandatory dependencies. Research and integration decisions must preserve policy enforcement, provenance, licensing review, security boundaries, and reproducible measurements.
+
+## Browser Engine Abstraction (M26)
+
+The browser crate now exposes a backend-neutral `BrowserEngine` contract, explicit engine metadata/capabilities, and an in-process `BrowserEngineRegistry`. The existing `chromiumoxide` renderer is the first registered backend and retains its fetched-snapshot-only, JavaScript-disabled, offline-CSP, policy-gated behavior. WebKit and Gecko are represented as research targets only; they are not implemented backends.
+
+- [M26 Browser Engine Abstraction Specification](docs/specifications/m26-browser-engine-abstraction.md)
+
