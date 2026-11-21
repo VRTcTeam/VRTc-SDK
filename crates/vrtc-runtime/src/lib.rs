@@ -7,6 +7,7 @@ use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
+use vrtc_extract::{ExtractionConfig, ExtractionEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_registry::Registry;
@@ -18,6 +19,8 @@ const FRONTIER_ENGINE_ID: &str = "engine.vrtc.frontier";
 const FRONTIER_CAPABILITY_ID: &str = "crawl.frontier";
 const FETCHER_ENGINE_ID: &str = "engine.vrtc.fetcher";
 const FETCHER_CAPABILITY_ID: &str = "http.fetch";
+const EXTRACT_ENGINE_ID: &str = "engine.vrtc.extract";
+const EXTRACT_CAPABILITY_ID: &str = "content.extract";
 
 /// Runtime configuration for the initial Search Engine subsystem.
 #[derive(Debug, Clone, Default)]
@@ -25,6 +28,7 @@ pub struct RuntimeConfig {
     pub search: SearchConfig,
     pub frontier: FrontierConfig,
     pub fetch: FetchConfig,
+    pub extraction: ExtractionConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -33,6 +37,7 @@ pub struct VrtcRuntime {
     search: Arc<SearchEngine>,
     frontier: Arc<FrontierEngine>,
     fetcher: Arc<FetchEngine>,
+    extraction: Arc<ExtractionEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -43,18 +48,22 @@ impl VrtcRuntime {
         let search = Arc::new(SearchEngine::new(config.search)?);
         let frontier = Arc::new(FrontierEngine::new(config.frontier)?);
         let fetcher = Arc::new(FetchEngine::new(config.fetch)?);
+        let extraction = Arc::new(ExtractionEngine::new(config.extraction)?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
         registry.register_static_engine(frontier_engine_descriptor())?;
         registry.activate_engine(FRONTIER_ENGINE_ID)?;
         registry.register_static_engine(fetcher_engine_descriptor())?;
         registry.activate_engine(FETCHER_ENGINE_ID)?;
+        registry.register_static_engine(extraction_engine_descriptor())?;
+        registry.activate_engine(EXTRACT_ENGINE_ID)?;
 
         Ok(Self {
             registry,
             search,
             frontier,
             fetcher,
+            extraction,
             registration_lock: Mutex::new(()),
         })
     }
@@ -158,6 +167,12 @@ impl VrtcRuntime {
         Arc::clone(&self.fetcher)
     }
 
+    /// Shared native HTML Extraction handle for parser and research workflows.
+    #[must_use]
+    pub fn extraction_engine(&self) -> Arc<ExtractionEngine> {
+        Arc::clone(&self.extraction)
+    }
+
     /// Execute a search through the runtime-owned Search Engine.
     pub async fn search(&self, request: SearchRequest) -> Result<SearchResponse, VrtCError> {
         self.search.search(request).await
@@ -231,6 +246,30 @@ fn fetcher_engine_descriptor() -> EngineDescriptor {
                     "public-addresses-only".to_owned(),
                 ),
                 ("response_limit".to_owned(), "configurable".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
+fn extraction_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: EXTRACT_ENGINE_ID.to_owned(),
+        name: "VRTc Native Content Extraction Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "extractor".to_owned(),
+        capabilities: vec![Capability {
+            id: EXTRACT_CAPABILITY_ID.to_owned(),
+            operations: vec!["extract_html".to_owned(), "extract_metadata".to_owned(), "extract_links".to_owned()],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("input".to_owned(), "html".to_owned()),
+                ("output".to_owned(), "text,markdown,metadata,links,provenance".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
         }],
@@ -342,6 +381,15 @@ mod tests {
 
         assert_eq!(error.code, "PROVIDER_ID_MISMATCH");
         assert!(runtime.registry().provider("provider.descriptor").is_none());
+    }
+
+    #[test]
+    fn built_in_extraction_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(EXTRACT_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "extractor");
+        assert_eq!(engine.capabilities[0].id, EXTRACT_CAPABILITY_ID);
     }
 
     #[test]
