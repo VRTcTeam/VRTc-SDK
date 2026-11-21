@@ -1,0 +1,15 @@
+[package]
+name = "vrtc-network"
+version = "0.1.0"
+description = "Native DNS resolution, TLS policy, and outbound route planning for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+tokio.workspace = true
+url = "2"
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
