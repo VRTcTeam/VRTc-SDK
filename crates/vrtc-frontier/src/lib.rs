@@ -195,7 +195,7 @@ impl FrontierEngine {
                     && state
                         .host_next_allowed
                         .get(&entry.host)
-                        .map_or(true, |allowed| *allowed <= now)
+                        .is_none_or(|allowed| *allowed <= now)
             })
             .max_by(|left, right| {
                 left.request
