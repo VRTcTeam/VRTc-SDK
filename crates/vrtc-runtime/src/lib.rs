@@ -18,6 +18,7 @@ use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_observability::{ObservabilityConfig, ObservabilityEngine};
+use vrtc_policy::{PolicyConfig, PolicyEngine};
 use vrtc_queue::{JobQueueEngine, QueueConfig};
 use vrtc_registry::Registry;
 use vrtc_research::{ResearchConfig, ResearchPlanner};
@@ -55,6 +56,8 @@ const RESEARCH_ENGINE_ID: &str = "engine.vrtc.research";
 const RESEARCH_CAPABILITY_ID: &str = "research.plan";
 const OBSERVABILITY_ENGINE_ID: &str = "engine.vrtc.observability";
 const OBSERVABILITY_CAPABILITY_ID: &str = "observability.telemetry";
+const POLICY_ENGINE_ID: &str = "engine.vrtc.policy";
+const POLICY_CAPABILITY_ID: &str = "policy.evaluate";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -74,6 +77,7 @@ pub struct RuntimeConfig {
     pub queue: QueueConfig,
     pub research: ResearchConfig,
     pub observability: ObservabilityConfig,
+    pub policy: PolicyConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -93,6 +97,7 @@ pub struct VrtcRuntime {
     queue: Arc<JobQueueEngine>,
     research: Arc<ResearchPlanner>,
     observability: Arc<ObservabilityEngine>,
+    policy: Arc<PolicyEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -125,6 +130,7 @@ impl VrtcRuntime {
         queue.recover_expired(now_ms)?;
         let research = Arc::new(ResearchPlanner::new(config.research)?);
         let observability = Arc::new(ObservabilityEngine::new(config.observability)?);
+        let policy = Arc::new(PolicyEngine::new(config.policy)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -163,6 +169,8 @@ impl VrtcRuntime {
         registry.activate_engine(RESEARCH_ENGINE_ID)?;
         registry.register_static_engine(observability_engine_descriptor())?;
         registry.activate_engine(OBSERVABILITY_ENGINE_ID)?;
+        registry.register_static_engine(policy_engine_descriptor())?;
+        registry.activate_engine(POLICY_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -180,6 +188,7 @@ impl VrtcRuntime {
             queue,
             research,
             observability,
+            policy,
             registration_lock: Mutex::new(()),
         })
     }
@@ -354,6 +363,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn observability_engine(&self) -> Arc<ObservabilityEngine> {
         Arc::clone(&self.observability)
+    }
+
+    /// Shared native URL, origin, host, and crawl policy decision engine.
+    #[must_use]
+    pub fn policy_engine(&self) -> Arc<PolicyEngine> {
+        Arc::clone(&self.policy)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -840,6 +855,38 @@ fn observability_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn policy_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: POLICY_ENGINE_ID.to_owned(),
+        name: "VRTc Native Security & Retrieval Policy Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "policy".to_owned(),
+        capabilities: vec![Capability {
+            id: POLICY_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "evaluate_url".to_owned(),
+                "enforce_host_rules".to_owned(),
+                "enforce_origin_scope".to_owned(),
+                "enforce_crawl_depth".to_owned(),
+                "require_robots_approval".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("schemes".to_owned(), "http,https-configurable".to_owned()),
+                ("private_addresses".to_owned(), "blocked-by-default".to_owned()),
+                ("crawl_scope".to_owned(), "same-origin-by-default".to_owned()),
+                ("robots".to_owned(), "approval-required-for-crawl".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -894,6 +941,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_policy_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(POLICY_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "policy");
+        assert_eq!(engine.capabilities[0].id, POLICY_CAPABILITY_ID);
     }
 
     #[test]
