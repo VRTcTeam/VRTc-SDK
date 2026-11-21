@@ -8,7 +8,7 @@
 
 - Tantivy is a Rust full-text indexing library inspired by Lucene and implements inverted-index search with BM25 scoring.
 - Lucene/OpenSearch/Vespa research established the separation between document indexing, candidate retrieval, and later-stage ranking.
-- Tantivy 0.24.1 is MIT-licensed and requires Rust 1.81; the workspace MSRV is raised from 1.80 to 1.81 to adopt the maintained bug-fix release without pulling in the newer 0.26/0.27 toolchain requirements.
+- Tantivy 0.24.0 is MIT-licensed and supports the existing Rust 1.80 workspace baseline; newer 0.26/0.27 releases require a newer toolchain.
 
 Tantivy is adopted as the embedded index primitive. VRTc owns the document model, schema contract, upsert/delete behavior, query boundary, result/provenance model, and runtime integration. Tantivy is not exposed as the public SDK contract.
 
