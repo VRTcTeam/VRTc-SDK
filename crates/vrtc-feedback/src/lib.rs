@@ -626,6 +626,27 @@ mod tests {
     }
 
     #[test]
+    fn lists_tasks_by_status_with_a_bounded_page_size() {
+        let engine = FeedbackEngine::new(FeedbackConfig::default()).unwrap();
+        let first = engine
+            .create_task("first query", "rubric-v1", vec![candidate("a")])
+            .unwrap();
+        let second = engine
+            .create_task("second query", "rubric-v1", vec![candidate("b")])
+            .unwrap();
+        engine
+            .submit_judgment(&second.id, "b", "reviewer-1", 2, "rubric-v1", None)
+            .unwrap();
+
+        let pending = engine.list_tasks(Some(ReviewTaskStatus::Pending), 10).unwrap();
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].id, first.id);
+        let all = engine.list_tasks(None, 10).unwrap();
+        assert_eq!(all.len(), 2);
+        assert!(engine.list_tasks(None, 0).is_err());
+    }
+
+    #[test]
     fn prevents_duplicate_judgments_and_invalid_labels() {
         let engine = FeedbackEngine::new(FeedbackConfig::default()).unwrap();
         let task = engine
