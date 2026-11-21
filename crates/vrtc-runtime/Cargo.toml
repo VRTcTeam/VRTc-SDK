@@ -21,6 +21,7 @@ vrtc-delta = { path = "../vrtc-delta" }
 vrtc-evidence = { path = "../vrtc-evidence" }
 vrtc-storage = { path = "../vrtc-storage" }
 vrtc-queue = { path = "../vrtc-queue" }
+vrtc-observability = { path = "../vrtc-observability" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
