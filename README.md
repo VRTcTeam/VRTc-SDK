@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -78,6 +78,10 @@ The runtime now statically registers a VRTc-owned URL Frontier Engine. It provid
 ## Native HTTP Fetcher
 
 The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
+
+## Native Job Queue & Processing Lifecycle
+
+VRTc includes a bounded job queue with priority scheduling, worker leases, generation-bound acknowledgements, retries, dead-letter handling, expired-lease recovery, and optional persistence through the shared Storage Engine. Delivery is at-least-once. The current queue coordinates workers within one runtime; it is not a distributed broker or worker executor. See [M17 Native Job Queue Specification](docs/specifications/m17-native-job-queue.md).
 
 ## Native Storage & Database Engine
 
