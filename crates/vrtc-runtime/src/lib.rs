@@ -10,6 +10,7 @@ use vrtc_core::{
 use vrtc_extract::{ExtractionConfig, ExtractionEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
+use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_registry::Registry;
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 
@@ -21,6 +22,8 @@ const FETCHER_ENGINE_ID: &str = "engine.vrtc.fetcher";
 const FETCHER_CAPABILITY_ID: &str = "http.fetch";
 const EXTRACT_ENGINE_ID: &str = "engine.vrtc.extract";
 const EXTRACT_CAPABILITY_ID: &str = "content.extract";
+const INDEX_ENGINE_ID: &str = "engine.vrtc.index";
+const INDEX_CAPABILITY_ID: &str = "index.documents";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -29,6 +32,7 @@ pub struct RuntimeConfig {
     pub frontier: FrontierConfig,
     pub fetch: FetchConfig,
     pub extraction: ExtractionConfig,
+    pub index: IndexConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -38,6 +42,7 @@ pub struct VrtcRuntime {
     frontier: Arc<FrontierEngine>,
     fetcher: Arc<FetchEngine>,
     extraction: Arc<ExtractionEngine>,
+    index: Arc<IndexEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -49,6 +54,7 @@ impl VrtcRuntime {
         let frontier = Arc::new(FrontierEngine::new(config.frontier)?);
         let fetcher = Arc::new(FetchEngine::new(config.fetch)?);
         let extraction = Arc::new(ExtractionEngine::new(config.extraction)?);
+        let index = Arc::new(IndexEngine::new(config.index)?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
         registry.register_static_engine(frontier_engine_descriptor())?;
@@ -57,6 +63,8 @@ impl VrtcRuntime {
         registry.activate_engine(FETCHER_ENGINE_ID)?;
         registry.register_static_engine(extraction_engine_descriptor())?;
         registry.activate_engine(EXTRACT_ENGINE_ID)?;
+        registry.register_static_engine(index_engine_descriptor())?;
+        registry.activate_engine(INDEX_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -64,6 +72,7 @@ impl VrtcRuntime {
             frontier,
             fetcher,
             extraction,
+            index,
             registration_lock: Mutex::new(()),
         })
     }
@@ -171,6 +180,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn extraction_engine(&self) -> Arc<ExtractionEngine> {
         Arc::clone(&self.extraction)
+    }
+
+    /// Shared native document Index handle for indexing and lexical retrieval.
+    #[must_use]
+    pub fn index_engine(&self) -> Arc<IndexEngine> {
+        Arc::clone(&self.index)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -286,6 +301,35 @@ fn extraction_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn index_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: INDEX_ENGINE_ID.to_owned(),
+        name: "VRTc Native Document Index".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "index".to_owned(),
+        capabilities: vec![Capability {
+            id: INDEX_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "upsert_batch".to_owned(),
+                "delete".to_owned(),
+                "search".to_owned(),
+                "stats".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("storage".to_owned(), "in-memory-or-local-directory".to_owned()),
+                ("retrieval".to_owned(), "lexical-bm25".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -388,6 +432,15 @@ mod tests {
 
         assert_eq!(error.code, "PROVIDER_ID_MISMATCH");
         assert!(runtime.registry().provider("provider.descriptor").is_none());
+    }
+
+    #[test]
+    fn built_in_index_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(INDEX_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "index");
+        assert_eq!(engine.capabilities[0].id, INDEX_CAPABILITY_ID);
     }
 
     #[test]
