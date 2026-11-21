@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle, and initial native Research Planner & Orchestration Graph are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -78,6 +78,10 @@ The runtime now statically registers a VRTc-owned URL Frontier Engine. It provid
 ## Native HTTP Fetcher
 
 The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
+
+## Native Research Planner & Orchestration Graph
+
+VRTc now creates bounded deterministic research DAGs from a query, source limit, crawl opt-in, and optional human-review gate. Plans declare capability IDs, dependencies, deterministic topological order, and parallel groups. The planner does not execute jobs or perform network/model calls; M17 queue and the underlying engines remain the execution layer. See [M18 Native Research Planner Specification](docs/specifications/m18-native-research-planner.md).
 
 ## Native Job Queue & Processing Lifecycle
 
