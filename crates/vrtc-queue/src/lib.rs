@@ -319,9 +319,8 @@ impl JobQueueEngine {
             .ok_or_else(|| job_not_found(job_id))?;
         validate_lease(&job, worker_id, generation)?;
         job.attempt_count = job.attempt_count.saturating_add(1);
-        job.last_error = error_message.map(|message| {
-            message.chars().take(1024).collect::<String>()
-        });
+        job.last_error =
+            error_message.map(|message| message.chars().take(1024).collect::<String>());
         job.leased_by = None;
         job.lease_until_ms = None;
         let outcome = if job.attempt_count >= job.max_attempts {
@@ -383,8 +382,10 @@ impl JobQueueEngine {
             .get(job_id)
             .cloned()
             .ok_or_else(|| job_not_found(job_id))?;
-        if matches!(job.status, JobStatus::Completed | JobStatus::DeadLetter | JobStatus::Cancelled)
-        {
+        if matches!(
+            job.status,
+            JobStatus::Completed | JobStatus::DeadLetter | JobStatus::Cancelled
+        ) {
             return Err(queue_error(
                 "JOB_NOT_CANCELLABLE",
                 "Completed, dead-lettered, or cancelled jobs cannot be cancelled again",
@@ -558,12 +559,7 @@ fn job_not_found(job_id: &str) -> VrtCError {
     )
 }
 
-fn queue_error(
-    code: &str,
-    message: &str,
-    category: ErrorCategory,
-    retryable: bool,
-) -> VrtCError {
+fn queue_error(code: &str, message: &str, category: ErrorCategory, retryable: bool) -> VrtCError {
     VrtCError::new(code, message, category, retryable)
 }
 
@@ -592,9 +588,7 @@ mod tests {
         let lease = queue.lease_next("worker-a", 10, 100).unwrap().unwrap();
         assert_eq!(lease.job.id, "high");
         assert!(queue.ack("high", "worker-b", lease.generation, 20).is_err());
-        let completed = queue
-            .ack("high", "worker-a", lease.generation, 20)
-            .unwrap();
+        let completed = queue.ack("high", "worker-a", lease.generation, 20).unwrap();
         assert_eq!(completed.status, JobStatus::Completed);
     }
 
@@ -604,12 +598,26 @@ mod tests {
         queue.submit(submission("job-1", 1)).unwrap();
         let first = queue.lease_next("worker", 10, 100).unwrap().unwrap();
         let (outcome, _) = queue
-            .retry("job-1", "worker", first.generation, 20, 0, Some("temporary".to_owned()))
+            .retry(
+                "job-1",
+                "worker",
+                first.generation,
+                20,
+                0,
+                Some("temporary".to_owned()),
+            )
             .unwrap();
         assert_eq!(outcome, RetryOutcome::Requeued);
         let second = queue.lease_next("worker", 20, 100).unwrap().unwrap();
         let (outcome, record) = queue
-            .retry("job-1", "worker", second.generation, 30, 0, Some("again".to_owned()))
+            .retry(
+                "job-1",
+                "worker",
+                second.generation,
+                30,
+                0,
+                Some("again".to_owned()),
+            )
             .unwrap();
         assert_eq!(outcome, RetryOutcome::DeadLetter);
         assert_eq!(record.status, JobStatus::DeadLetter);
@@ -621,14 +629,17 @@ mod tests {
         let queue = JobQueueEngine::new(QueueConfig::default(), None).unwrap();
         queue.submit(submission("expired-job", 1)).unwrap();
         let lease = queue.lease_next("worker", 10, 10).unwrap().unwrap();
-        assert!(queue.ack("expired-job", "worker", lease.generation, 20).is_err());
+        assert!(queue
+            .ack("expired-job", "worker", lease.generation, 20)
+            .is_err());
         assert_eq!(queue.recover_expired(20).unwrap().requeued, 1);
     }
 
     #[test]
     fn recovers_expired_leases_and_persists_job_lifecycle() {
         let storage = Arc::new(StorageEngine::memory(StorageConfig::default()).unwrap());
-        let queue = JobQueueEngine::new(QueueConfig::default(), Some(Arc::clone(&storage))).unwrap();
+        let queue =
+            JobQueueEngine::new(QueueConfig::default(), Some(Arc::clone(&storage))).unwrap();
         queue.submit(submission("persisted-job", 5)).unwrap();
         queue.lease_next("worker", 10, 10).unwrap().unwrap();
         let recovered = queue.recover_expired(25).unwrap();
