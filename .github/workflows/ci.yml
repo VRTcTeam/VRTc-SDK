@@ -28,7 +28,7 @@ jobs:
           grep -q "VRTc" README.md
 
       - name: Check whitespace errors
-        run: git diff --check
+        run: git show --check --oneline HEAD
 
   rust-workspace:
     name: Rust workspace
