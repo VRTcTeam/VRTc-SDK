@@ -20,7 +20,6 @@ pub struct NetworkConfig {
     pub max_addresses_per_host: usize,
     pub cache_ttl_ms: u64,
     pub lookup_timeout_ms: u64,
-    pub block_non_public_addresses: bool,
 }
 
 impl Default for NetworkConfig {
@@ -30,7 +29,6 @@ impl Default for NetworkConfig {
             max_addresses_per_host: 16,
             cache_ttl_ms: 30_000,
             lookup_timeout_ms: 3_000,
-            block_non_public_addresses: true,
         }
     }
 }
@@ -69,17 +67,19 @@ pub struct DnsResolution {
     pub cache_hit: bool,
 }
 
+#[derive(Debug)]
 struct CachedDns {
     addresses: Vec<IpAddr>,
     expires_at: Instant,
     expires_at_unix_ms: u64,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct DnsState {
     entries: HashMap<String, CachedDns>,
 }
 
+#[derive(Debug)]
 pub struct NetworkInfrastructure {
     config: NetworkConfig,
     state: Mutex<DnsState>,
@@ -89,13 +89,17 @@ pub struct NetworkInfrastructure {
 impl NetworkInfrastructure {
     pub fn new(config: NetworkConfig) -> Result<Self, VrtCError> {
         if config.max_cache_entries == 0
+            || config.max_cache_entries > 100_000
             || config.max_addresses_per_host == 0
+            || config.max_addresses_per_host > 32
             || config.cache_ttl_ms == 0
+            || config.cache_ttl_ms > 300_000
             || config.lookup_timeout_ms == 0
+            || config.lookup_timeout_ms > 30_000
         {
             return Err(network_error(
                 "INVALID_NETWORK_CONFIG",
-                "DNS cache, address, TTL, and lookup timeout limits must be positive",
+                "DNS cache, address, TTL, and lookup timeout limits must be positive and bounded",
                 ErrorCategory::Validation,
             ));
         }
@@ -118,17 +122,17 @@ impl NetworkInfrastructure {
             || host.len() > 253
             || host.chars().any(char::is_control)
             || host.chars().any(char::is_whitespace)
-            || port == 0
+            || !matches!(port, 80 | 443)
         {
             return Err(network_error(
                 "INVALID_DNS_REQUEST",
-                "DNS host and port must be valid and bounded",
+                "DNS host must be valid and the port must be HTTP or HTTPS",
                 ErrorCategory::Validation,
             ));
         }
 
         if let Ok(address) = host.parse::<IpAddr>() {
-            if self.config.block_non_public_addresses && !is_public_ip(address) {
+            if !is_public_ip(address) {
                 return Err(network_error(
                     "NON_PUBLIC_DNS_ADDRESS",
                     "The requested IP address is not permitted for public fetching",
@@ -193,8 +197,7 @@ impl NetworkInfrastructure {
                 ErrorCategory::ResourceExhausted,
             ));
         }
-        if self.config.block_non_public_addresses
-            && addresses.iter().any(|address| !is_public_ip(*address))
+        if addresses.iter().any(|address| !is_public_ip(*address))
         {
             return Err(network_error(
                 "NON_PUBLIC_DNS_ADDRESS",
