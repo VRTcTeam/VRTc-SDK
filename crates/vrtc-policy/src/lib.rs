@@ -173,7 +173,9 @@ impl PolicyEngine {
             && self.config.require_robots_for_crawl
             && request.robots_allowed != Some(true)
         {
-            return Ok(denied(PolicyReason::RobotsNotApproved));
+            let mut decision = denied(PolicyReason::RobotsNotApproved);
+            decision.requires_robots_evaluation = request.robots_allowed.is_none();
+            return Ok(decision);
         }
 
         target.set_fragment(None);
@@ -181,7 +183,7 @@ impl PolicyEngine {
             outcome: PolicyOutcome::Allow,
             reason: PolicyReason::Allowed,
             normalized_url: Some(target.to_string()),
-            requires_robots_evaluation: request.is_crawl && self.config.require_robots_for_crawl,
+            requires_robots_evaluation: false,
         })
     }
 }
@@ -308,7 +310,9 @@ mod tests {
         let mut crawl = request("https://example.org/page");
         crawl.is_crawl = true;
         crawl.crawl_depth = 1;
-        assert_eq!(engine.evaluate(&crawl).unwrap().reason, PolicyReason::RobotsNotApproved);
+        let pending = engine.evaluate(&crawl).unwrap();
+        assert_eq!(pending.reason, PolicyReason::RobotsNotApproved);
+        assert!(pending.requires_robots_evaluation);
         crawl.robots_allowed = Some(true);
         assert_eq!(engine.evaluate(&crawl).unwrap().outcome, PolicyOutcome::Allow);
         crawl.crawl_depth = 6;
