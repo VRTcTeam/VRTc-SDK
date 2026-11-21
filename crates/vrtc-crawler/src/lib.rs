@@ -11,10 +11,10 @@ use std::time::{Duration, Instant, SystemTime};
 use robotstxt::DefaultMatcher;
 use url::Url;
 use vrtc_core::{ErrorCategory, VrtCError};
+use vrtc_delta::{ChangeKind, DeltaEngine};
 use vrtc_extract::ExtractionEngine;
 use vrtc_fetcher::FetchEngine;
 use vrtc_frontier::{CrawlRequest, EnqueueOutcome, FrontierEngine, FrontierStats, RetryOutcome};
-use vrtc_delta::{ChangeKind, DeltaEngine};
 use vrtc_index::{IndexDocument, IndexEngine};
 
 #[derive(Debug, Clone)]
