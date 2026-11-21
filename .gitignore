@@ -1,0 +1,22 @@
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Local credentials and private key material
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# Rust build output
+/target/
+
+# Local tooling and editor state
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
