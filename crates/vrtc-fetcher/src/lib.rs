@@ -102,7 +102,7 @@ impl FetchEngine {
             )
         })?;
 
-        let resolution = self.network.resolve(&host, port).await?;
+        let resolution = self.network.resolve_public(&host, port).await?;
         let address = resolution.addresses.into_iter().next().ok_or_else(|| {
             fetch_error(
                 "FETCH_DNS_EMPTY",
