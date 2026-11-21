@@ -110,6 +110,17 @@ impl SearchEngine {
         Ok(())
     }
 
+    /// Return registered provider identifiers in deterministic order.
+    #[must_use]
+    pub fn provider_ids(&self) -> Vec<String> {
+        let Ok(providers) = self.providers.read() else {
+            return Vec::new();
+        };
+        let mut ids = providers.iter().map(|provider| provider.id().to_owned()).collect::<Vec<_>>();
+        ids.sort();
+        ids
+    }
+
     /// Execute a normalized query against configured providers concurrently.
     /// Individual provider errors do not cancel successful providers.
     pub async fn search(&self, mut request: SearchRequest) -> Result<SearchResponse, VrtCError> {
