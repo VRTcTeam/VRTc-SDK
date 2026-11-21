@@ -38,6 +38,7 @@ jobs:
           test -s crates/vrtc-frontier/src/lib.rs
           test -s crates/vrtc-fetcher/src/lib.rs
           test -s crates/vrtc-extract/src/lib.rs
+          test -s crates/vrtc-index/src/lib.rs
           test -s crates/vrtc-runtime/src/lib.rs
           test -s crates/vrtc-api/src/lib.rs
           test -s crates/vrtc-provider-geekflare/src/lib.rs
@@ -46,6 +47,7 @@ jobs:
           test -s docs/specifications/m4-http-api.md
           test -s docs/specifications/m7-native-http-fetcher.md
           test -s docs/specifications/m8-native-html-extraction.md
+          test -s docs/specifications/m9-native-document-index.md
           test -s sdks/typescript/src/index.ts
           test -s sdks/python/src/vrtc_sdk/client.py
 
