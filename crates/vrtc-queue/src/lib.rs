@@ -317,7 +317,7 @@ impl JobQueueEngine {
             .get(job_id)
             .cloned()
             .ok_or_else(|| job_not_found(job_id))?;
-        validate_lease(&job, worker_id, generation)?;
+        validate_lease(&job, worker_id, generation, now_ms)?;
         job.attempt_count = job.attempt_count.saturating_add(1);
         job.last_error =
             error_message.map(|message| message.chars().take(1024).collect::<String>());
