@@ -606,7 +606,10 @@ fn evidence_engine_descriptor() -> EngineDescriptor {
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
                 ("assessment".to_owned(), "explicit-not-inferred".to_owned()),
-                ("provenance".to_owned(), "source-url-content-hash-retrieval-time".to_owned()),
+                (
+                    "provenance".to_owned(),
+                    "source-url-content-hash-retrieval-time".to_owned(),
+                ),
                 ("storage".to_owned(), "bounded-in-memory-ledger".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
