@@ -7,9 +7,9 @@ use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
+use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_registry::Registry;
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
-use vrtc_frontier::{FrontierConfig, FrontierEngine};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
