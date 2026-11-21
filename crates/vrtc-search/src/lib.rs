@@ -491,6 +491,76 @@ mod tests {
         assert_eq!(error.category, ErrorCategory::DuplicateId);
     }
 
+    struct MultiResultProvider {
+        provider_id: &'static str,
+        results: Vec<SearchResult>,
+    }
+
+    #[async_trait]
+    impl SearchProvider for MultiResultProvider {
+        fn id(&self) -> &str {
+            self.provider_id
+        }
+
+        async fn search(&self, _request: SearchRequest) -> Result<Vec<SearchResult>, VrtCError> {
+            Ok(self.results.clone())
+        }
+    }
+
+    fn result(title: &str, url: &str, score: f64) -> SearchResult {
+        SearchResult {
+            title: title.to_owned(),
+            url: url.to_owned(),
+            snippet: Some("metasearch test".to_owned()),
+            score: Some(score),
+            provider_id: String::new(),
+            published_at: None,
+            language: Some("en".to_owned()),
+            metadata: BTreeMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn metasearch_uses_rank_fusion_instead_of_comparing_raw_provider_scores() {
+        let engine = SearchEngine::new(SearchConfig::default()).unwrap();
+        engine
+            .register_provider(Arc::new(MultiResultProvider {
+                provider_id: "provider.alpha",
+                results: vec![
+                    result("Document A", "https://example.org/a", 0.01),
+                    result("Document B", "https://example.org/b", 0.99),
+                ],
+            }))
+            .unwrap();
+        engine
+            .register_provider(Arc::new(MultiResultProvider {
+                provider_id: "provider.beta",
+                results: vec![
+                    result("Document A", "https://example.org/a#fragment", 0.10),
+                    result("Document B", "https://example.org/b", 0.90),
+                ],
+            }))
+            .unwrap();
+
+        let response = engine
+            .search(SearchRequest::new("independent search systems"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.results.len(), 2);
+        assert_eq!(response.results[0].title, "Document A");
+        assert_eq!(response.results[1].title, "Document B");
+        assert!(response.results[0].score > response.results[1].score);
+        assert_eq!(
+            response.results[0].metadata["vrtc.metasearch.source_count"],
+            "2"
+        );
+        assert!(response.results[0]
+            .metadata
+            .contains_key("vrtc.provider_score.provider.alpha"));
+        assert_eq!(response.providers_queried.len(), 2);
+    }
+
     #[test]
     fn url_deduplication_ignores_host_case_trailing_slash_and_fragment() {
         assert_eq!(
