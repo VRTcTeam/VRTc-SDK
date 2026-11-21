@@ -291,7 +291,7 @@ impl CrawlerEngine {
                 source: "vrtc-native-crawler".to_owned(),
             };
 
-            if self.index.index_batch(&[document.clone()]).is_err() {
+            if self.index.index_batch(std::slice::from_ref(&document)).is_err() {
                 self.retry_lease(&lease.id, Duration::from_secs(2), &mut report)?;
                 continue;
             }
