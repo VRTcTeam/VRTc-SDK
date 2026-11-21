@@ -130,6 +130,13 @@ impl ArchiveEngine {
     }
 
     pub fn capture(&self, capture: ArchiveCapture) -> Result<ArchiveRecord, VrtCError> {
+        if capture.body.len() > self.config.max_record_bytes {
+            return Err(archive_error(
+                "ARCHIVE_RECORD_TOO_LARGE",
+                "Response body exceeds the configured record byte limit",
+                ErrorCategory::ResourceExhausted,
+            ));
+        }
         let mut record = normalize_capture(capture)?;
         let serialized_bytes = record.to_warc_bytes().len();
         if serialized_bytes > self.config.max_record_bytes
@@ -144,6 +151,13 @@ impl ArchiveEngine {
         record.serialized_bytes = serialized_bytes;
 
         let mut state = self.lock_state()?;
+        if state.records.iter().any(|existing| existing.record_id == record.record_id) {
+            return Err(archive_error(
+                "DUPLICATE_ARCHIVE_RECORD_ID",
+                "WARC record IDs must be unique within the retained archive",
+                ErrorCategory::Validation,
+            ));
+        }
         while state.records.len() >= self.config.max_records
             || state.bytes_retained.saturating_add(serialized_bytes) > self.config.max_total_bytes
         {
@@ -321,6 +335,11 @@ fn valid_warc_date(value: &str) -> bool {
             .iter()
             .enumerate()
             .all(|(index, byte)| [4, 7, 10, 13, 16, 19].contains(&index) || byte.is_ascii_digit())
+        && value[5..7].parse::<u8>().is_ok_and(|month| (1..=12).contains(&month))
+        && value[8..10].parse::<u8>().is_ok_and(|day| (1..=31).contains(&day))
+        && value[11..13].parse::<u8>().is_ok_and(|hour| hour <= 23)
+        && value[14..16].parse::<u8>().is_ok_and(|minute| minute <= 59)
+        && value[17..19].parse::<u8>().is_ok_and(|second| second <= 60)
 }
 
 fn valid_header_name(value: &str) -> bool {
@@ -439,7 +458,7 @@ mod tests {
                 .code,
             "INVALID_ARCHIVE_RECORD_ID"
         );
-        let mut invalid = capture(
+        let invalid = capture(
             "550e8400-e29b-41d4-a716-446655440000",
             "file:///etc/passwd",
             b"x",
