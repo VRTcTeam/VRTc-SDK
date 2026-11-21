@@ -200,7 +200,11 @@ impl DeltaEngine {
             kind: ChangeKind::Created,
             previous_hash: None,
             current_hash,
-            added_lines: content.lines().count(),
+            added_lines: if content.lines().count() > self.config.max_diff_lines {
+                0
+            } else {
+                content.lines().count()
+            },
             removed_lines: 0,
             metadata_changed: true,
             diff_truncated: content.lines().count() > self.config.max_diff_lines,
@@ -238,7 +242,8 @@ impl DeltaEngine {
         let Some(history) = state.histories.get(&url) else {
             return Ok(Vec::new());
         };
-        Ok(history.iter().rev().take(limit).cloned().collect::<Vec<_>>().into_iter().rev().collect())
+        let start = history.len().saturating_sub(limit);
+        Ok(history[start..].to_vec())
     }
 
     pub fn stats(&self) -> Result<DeltaStats, VrtCError> {
@@ -288,14 +293,18 @@ fn calculate_diff(old: &str, new: &str, max_lines: usize) -> (usize, usize, bool
 fn fingerprint(title: &str, description: &str, content: &str) -> String {
     let mut hasher = Sha256::new();
     for value in [title, description, content] {
-        hasher.update((value.len() as u64).to_be_bytes());
-        hasher.update(value.as_bytes());
+        let normalized = value.split_whitespace().collect::<Vec<_>>().join(" ");
+        hasher.update((normalized.len() as u64).to_be_bytes());
+        hasher.update(normalized.as_bytes());
     }
-    hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
+    let digest = hasher.finalize();
+    let hex = b"0123456789abcdef";
+    let mut output = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        output.push(hex[(byte >> 4) as usize] as char);
+        output.push(hex[(byte & 0x0f) as usize] as char);
+    }
+    output
 }
 
 fn canonicalize_url(raw_url: &str) -> Result<String, VrtCError> {
