@@ -478,6 +478,7 @@ dependencies = [
  "axum",
  "serde",
  "vrtc-core",
+ "vrtc-runtime",
  "vrtc-search",
 ]
 
@@ -493,6 +494,15 @@ name = "vrtc-registry"
 version = "0.1.0"
 dependencies = [
  "vrtc-core",
+]
+
+[[package]]
+name = "vrtc-runtime"
+version = "0.1.0"
+dependencies = [
+ "vrtc-core",
+ "vrtc-registry",
+ "vrtc-search",
 ]
 
 [[package]]
