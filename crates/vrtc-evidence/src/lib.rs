@@ -58,6 +58,19 @@ pub struct EvidenceRecord {
     pub extraction_confidence: f64,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct EvidenceInput {
+    pub id: String,
+    pub claim_id: String,
+    pub source_id: String,
+    pub source_url: String,
+    pub source_title: String,
+    pub excerpt: String,
+    pub content_hash: String,
+    pub retrieved_at: SystemTime,
+    pub extraction_confidence: f64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EvidenceRelation {
     Supports,
@@ -76,6 +89,17 @@ pub enum AssessmentMethod {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EvidenceAssessment {
+    pub evidence_id: String,
+    pub relation: EvidenceRelation,
+    pub confidence: f64,
+    pub assessor_id: String,
+    pub method: AssessmentMethod,
+    pub rationale: String,
+    pub assessed_at: SystemTime,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AssessmentInput {
     pub evidence_id: String,
     pub relation: EvidenceRelation,
     pub confidence: f64,
@@ -196,24 +220,16 @@ impl EvidenceEngine {
 
     pub fn attach_evidence(
         &self,
-        id: &str,
-        claim_id: &str,
-        source_id: &str,
-        source_url: &str,
-        source_title: &str,
-        excerpt: &str,
-        content_hash: &str,
-        retrieved_at: SystemTime,
-        extraction_confidence: f64,
+        input: EvidenceInput,
     ) -> Result<EvidenceRecord, VrtCError> {
-        if id.trim().is_empty()
-            || source_id.trim().is_empty()
-            || source_title.trim().is_empty()
-            || excerpt.trim().is_empty()
-            || excerpt.len() > self.config.max_excerpt_bytes
-            || !extraction_confidence.is_finite()
-            || !(0.0..=1.0).contains(&extraction_confidence)
-            || !is_sha256(content_hash)
+        if input.id.trim().is_empty()
+            || input.source_id.trim().is_empty()
+            || input.source_title.trim().is_empty()
+            || input.excerpt.trim().is_empty()
+            || input.excerpt.len() > self.config.max_excerpt_bytes
+            || !input.extraction_confidence.is_finite()
+            || !(0.0..=1.0).contains(&input.extraction_confidence)
+            || !is_sha256(&input.content_hash)
         {
             return Err(evidence_error(
                 "INVALID_EVIDENCE_RECORD",
@@ -221,16 +237,16 @@ impl EvidenceEngine {
                 ErrorCategory::Validation,
             ));
         }
-        let (source_url, source_host) = canonicalize_source_url(source_url)?;
+        let (source_url, source_host) = canonicalize_source_url(&input.source_url)?;
         let mut state = self.lock_state()?;
-        if !state.claims.contains_key(claim_id) {
+        if !state.claims.contains_key(&input.claim_id) {
             return Err(evidence_error(
                 "CLAIM_NOT_FOUND",
                 "Evidence cannot be attached to an unknown claim",
                 ErrorCategory::NotFound,
             ));
         }
-        if state.evidence.contains_key(id) {
+        if state.evidence.contains_key(&input.id) {
             return Err(evidence_error(
                 "DUPLICATE_EVIDENCE_ID",
                 "An evidence record with this identifier already exists",
@@ -244,7 +260,7 @@ impl EvidenceEngine {
                 ErrorCategory::ResourceExhausted,
             ));
         }
-        let linked = state.by_claim.get(claim_id).map_or(0, Vec::len);
+        let linked = state.by_claim.get(&input.claim_id).map_or(0, Vec::len);
         if linked >= self.config.max_evidence_per_claim {
             return Err(evidence_error(
                 "CLAIM_EVIDENCE_LIMIT_REACHED",
@@ -253,41 +269,35 @@ impl EvidenceEngine {
             ));
         }
         let record = EvidenceRecord {
-            id: id.to_owned(),
-            claim_id: claim_id.to_owned(),
-            source_id: source_id.to_owned(),
+            id: input.id.clone(),
+            claim_id: input.claim_id.clone(),
+            source_id: input.source_id,
             source_url,
             source_host,
-            source_title: source_title.to_owned(),
-            excerpt: excerpt.to_owned(),
-            content_hash: content_hash.to_ascii_lowercase(),
-            retrieved_at,
-            extraction_confidence,
+            source_title: input.source_title,
+            excerpt: input.excerpt,
+            content_hash: input.content_hash.to_ascii_lowercase(),
+            retrieved_at: input.retrieved_at,
+            extraction_confidence: input.extraction_confidence,
         };
-        state.evidence.insert(id.to_owned(), record.clone());
+        state.evidence.insert(input.id.clone(), record.clone());
         state
             .by_claim
-            .entry(claim_id.to_owned())
+            .entry(input.claim_id)
             .or_default()
-            .push(id.to_owned());
+            .push(input.id);
         Ok(record)
     }
 
     /// Record one explicit assessment. Semantic support is never inferred here.
     pub fn assess_evidence(
         &self,
-        evidence_id: &str,
-        relation: EvidenceRelation,
-        confidence: f64,
-        assessor_id: &str,
-        method: AssessmentMethod,
-        rationale: &str,
-        assessed_at: SystemTime,
+        input: AssessmentInput,
     ) -> Result<EvidenceAssessment, VrtCError> {
-        if assessor_id.trim().is_empty()
-            || rationale.len() > self.config.max_rationale_bytes
-            || !confidence.is_finite()
-            || !(0.0..=1.0).contains(&confidence)
+        if input.assessor_id.trim().is_empty()
+            || input.rationale.len() > self.config.max_rationale_bytes
+            || !input.confidence.is_finite()
+            || !(0.0..=1.0).contains(&input.confidence)
         {
             return Err(evidence_error(
                 "INVALID_EVIDENCE_ASSESSMENT",
@@ -296,14 +306,14 @@ impl EvidenceEngine {
             ));
         }
         let mut state = self.lock_state()?;
-        if !state.evidence.contains_key(evidence_id) {
+        if !state.evidence.contains_key(&input.evidence_id) {
             return Err(evidence_error(
                 "EVIDENCE_NOT_FOUND",
                 "The requested evidence record does not exist",
                 ErrorCategory::NotFound,
             ));
         }
-        if state.assessments.contains_key(evidence_id) {
+        if state.assessments.contains_key(&input.evidence_id) {
             return Err(evidence_error(
                 "DUPLICATE_EVIDENCE_ASSESSMENT",
                 "Evidence already has a final assessment; create a new evidence version to reassess it",
@@ -311,17 +321,17 @@ impl EvidenceEngine {
             ));
         }
         let assessment = EvidenceAssessment {
-            evidence_id: evidence_id.to_owned(),
-            relation,
-            confidence,
-            assessor_id: assessor_id.to_owned(),
-            method,
-            rationale: rationale.to_owned(),
-            assessed_at,
+            evidence_id: input.evidence_id.clone(),
+            relation: input.relation,
+            confidence: input.confidence,
+            assessor_id: input.assessor_id,
+            method: input.method,
+            rationale: input.rationale,
+            assessed_at: input.assessed_at,
         };
         state
             .assessments
-            .insert(evidence_id.to_owned(), assessment.clone());
+            .insert(input.evidence_id, assessment.clone());
         Ok(assessment)
     }
 
