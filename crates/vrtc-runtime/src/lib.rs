@@ -1297,4 +1297,17 @@ mod tests {
         assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
         assert_eq!(engine.registration_source, RegistrationSource::Static);
     }
+    #[test]
+    fn built_in_network_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(NETWORK_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "network-infrastructure");
+        assert_eq!(engine.capabilities[0].id, NETWORK_CAPABILITY_ID);
+        assert_eq!(
+            runtime.network_engine().plan_route("https://example.org").unwrap().mode,
+            vrtc_network::RouteMode::Direct
+        );
+    }
+
 }
