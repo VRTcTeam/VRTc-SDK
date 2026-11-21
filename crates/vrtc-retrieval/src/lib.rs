@@ -363,7 +363,7 @@ mod tests {
                     "shared",
                     "https://example.org/shared#old",
                     "Search system design",
-                    "Search and retrieval systems use ranked documents.",
+                    "Crawler scheduling improves hybrid retrieval ranking.",
                 ),
             ])
             .unwrap();
