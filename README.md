@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, and the first provider-agnostic Search Engine foundation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, and the native URL Frontier & Scheduler are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -46,7 +46,7 @@ VRTc uses a **hybrid registration model**:
 
 Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.
 
-The M1 baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md). The runtime integration is described in [Runtime & Registry Integration](docs/specifications/m2-runtime-integration.md).
+The M1 baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md). The runtime integration is described in [Runtime & Registry Integration](docs/specifications/m2-runtime-integration.md). The broader native-engine research, including crawler/search systems and human-feedback workflows, is in [Native Engine Landscape Research](docs/research/native-engine-landscape.md).
 
 ## Initial subsystem: Search Engine
 
@@ -66,6 +66,10 @@ Implemented foundation:
 The VRTc Search Engine coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
 
 External search services are optional adapters. The core SDK does not require a paid provider to exist. The current implementation does not include a built-in public-web index or claim to search the internet without a configured provider.
+
+## Native URL Frontier & Scheduler
+
+The runtime now statically registers a VRTc-owned URL Frontier Engine. It provides URL canonicalization and deduplication, bounded pending/in-flight queues, priority scheduling, maximum crawl depth, per-host politeness delays, lease expiry and recovery, retry budgets, and terminal completion/failure tracking. The frontier does not fetch pages; HTTP fetching, browser rendering, and parsing remain separate engine responsibilities. See [Native Engine Landscape Research](docs/research/native-engine-landscape.md).
 
 ## Initial HTTP API
 

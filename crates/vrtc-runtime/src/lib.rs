@@ -7,22 +7,27 @@ use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
+use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_registry::Registry;
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
+const FRONTIER_ENGINE_ID: &str = "engine.vrtc.frontier";
+const FRONTIER_CAPABILITY_ID: &str = "crawl.frontier";
 
 /// Runtime configuration for the initial Search Engine subsystem.
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     pub search: SearchConfig,
+    pub frontier: FrontierConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
 pub struct VrtcRuntime {
     registry: Arc<Registry>,
     search: Arc<SearchEngine>,
+    frontier: Arc<FrontierEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -31,12 +36,16 @@ impl VrtcRuntime {
     pub fn new(config: RuntimeConfig) -> Result<Self, VrtCError> {
         let registry = Arc::new(Registry::new());
         let search = Arc::new(SearchEngine::new(config.search)?);
+        let frontier = Arc::new(FrontierEngine::new(config.frontier)?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
+        registry.register_static_engine(frontier_engine_descriptor())?;
+        registry.activate_engine(FRONTIER_ENGINE_ID)?;
 
         Ok(Self {
             registry,
             search,
+            frontier,
             registration_lock: Mutex::new(()),
         })
     }
@@ -128,6 +137,12 @@ impl VrtcRuntime {
         Arc::clone(&self.search)
     }
 
+    /// Shared native URL Frontier handle for crawler and fetcher subsystems.
+    #[must_use]
+    pub fn frontier_engine(&self) -> Arc<FrontierEngine> {
+        Arc::clone(&self.frontier)
+    }
+
     /// Execute a search through the runtime-owned Search Engine.
     pub async fn search(&self, request: SearchRequest) -> Result<SearchResponse, VrtCError> {
         self.search.search(request).await
@@ -144,6 +159,33 @@ fn search_engine_descriptor() -> EngineDescriptor {
         capabilities: vec![Capability {
             id: SEARCH_CAPABILITY_ID.to_owned(),
             operations: vec!["search".to_owned()],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::new(),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
+fn frontier_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: FRONTIER_ENGINE_ID.to_owned(),
+        name: "VRTc URL Frontier & Scheduler".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "frontier".to_owned(),
+        capabilities: vec![Capability {
+            id: FRONTIER_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "enqueue".to_owned(),
+                "lease".to_owned(),
+                "complete".to_owned(),
+                "retry".to_owned(),
+                "recover".to_owned(),
+            ],
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::new(),
@@ -257,6 +299,15 @@ mod tests {
 
         assert_eq!(error.code, "PROVIDER_ID_MISMATCH");
         assert!(runtime.registry().provider("provider.descriptor").is_none());
+    }
+
+    #[test]
+    fn built_in_frontier_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(FRONTIER_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "frontier");
+        assert_eq!(engine.capabilities[0].id, FRONTIER_CAPABILITY_ID);
     }
 
     #[test]
