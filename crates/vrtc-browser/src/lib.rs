@@ -498,6 +498,14 @@ mod tests {
 mod engine_abstraction_tests {
     use super::*;
 
+    fn renderer() -> BrowserRenderer {
+        BrowserRenderer::new(
+            BrowserRenderConfig::default(),
+            Arc::new(PolicyEngine::new(Default::default()).unwrap()),
+        )
+        .unwrap()
+    }
+
     #[test]
     fn chromium_backend_declares_snapshot_only_capabilities() {
         let info = renderer().info();
