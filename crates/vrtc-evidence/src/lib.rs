@@ -510,17 +510,17 @@ mod tests {
 
     fn add_evidence(engine: &EvidenceEngine, id: &str, host: &str) {
         engine
-            .attach_evidence(
-                id,
-                "claim-1",
-                "crawler",
-                &format!("https://{host}/source"),
-                "Source title",
-                "A quoted excerpt that is relevant to the claim.",
-                "a".repeat(64).as_str(),
-                at(1),
-                0.9,
-            )
+            .attach_evidence(EvidenceInput {
+                id: id.to_owned(),
+                claim_id: "claim-1".to_owned(),
+                source_id: "crawler".to_owned(),
+                source_url: format!("https://{host}/source"),
+                source_title: "Source title".to_owned(),
+                excerpt: "A quoted excerpt that is relevant to the claim.".to_owned(),
+                content_hash: "a".repeat(64),
+                retrieved_at: at(1),
+                extraction_confidence: 0.9,
+            })
             .unwrap();
     }
 
@@ -534,15 +534,15 @@ mod tests {
         add_evidence(&engine, "evidence-2", "two.example");
         for id in ["evidence-1", "evidence-2"] {
             engine
-                .assess_evidence(
-                    id,
-                    EvidenceRelation::Supports,
-                    0.9,
-                    "reviewer-1",
-                    AssessmentMethod::Human,
-                    "The cited excerpt supports the claim.",
-                    at(2),
-                )
+                .assess_evidence(AssessmentInput {
+                    evidence_id: id.to_owned(),
+                    relation: EvidenceRelation::Supports,
+                    confidence: 0.9,
+                    assessor_id: "reviewer-1".to_owned(),
+                    method: AssessmentMethod::Human,
+                    rationale: "The cited excerpt supports the claim.".to_owned(),
+                    assessed_at: at(2),
+                })
                 .unwrap();
         }
         let verification = engine.verify_claim("claim-1").unwrap();
@@ -559,26 +559,26 @@ mod tests {
         add_evidence(&engine, "evidence-1", "one.example");
         add_evidence(&engine, "evidence-2", "two.example");
         engine
-            .assess_evidence(
-                "evidence-1",
-                EvidenceRelation::Supports,
-                0.9,
-                "reviewer-1",
-                AssessmentMethod::Human,
-                "Supporting excerpt.",
-                at(2),
-            )
+            .assess_evidence(AssessmentInput {
+                evidence_id: "evidence-1".to_owned(),
+                relation: EvidenceRelation::Supports,
+                confidence: 0.9,
+                assessor_id: "reviewer-1".to_owned(),
+                method: AssessmentMethod::Human,
+                rationale: "Supporting excerpt.".to_owned(),
+                assessed_at: at(2),
+            })
             .unwrap();
         engine
-            .assess_evidence(
-                "evidence-2",
-                EvidenceRelation::Contradicts,
-                0.9,
-                "reviewer-2",
-                AssessmentMethod::Human,
-                "Contradicting excerpt.",
-                at(2),
-            )
+            .assess_evidence(AssessmentInput {
+                evidence_id: "evidence-2".to_owned(),
+                relation: EvidenceRelation::Contradicts,
+                confidence: 0.9,
+                assessor_id: "reviewer-2".to_owned(),
+                method: AssessmentMethod::Human,
+                rationale: "Contradicting excerpt.".to_owned(),
+                assessed_at: at(2),
+            })
             .unwrap();
         assert_eq!(
             engine.verify_claim("claim-1").unwrap().status,
@@ -598,15 +598,15 @@ mod tests {
             VerificationStatus::NeedsReview
         );
         engine
-            .assess_evidence(
-                "evidence-1",
-                EvidenceRelation::Supports,
-                0.95,
-                "reviewer-1",
-                AssessmentMethod::Human,
-                "One source is not enough.",
-                at(2),
-            )
+            .assess_evidence(AssessmentInput {
+                evidence_id: "evidence-1".to_owned(),
+                relation: EvidenceRelation::Supports,
+                confidence: 0.95,
+                assessor_id: "reviewer-1".to_owned(),
+                method: AssessmentMethod::Human,
+                rationale: "One source is not enough.".to_owned(),
+                assessed_at: at(2),
+            })
             .unwrap();
         assert_eq!(
             engine.verify_claim("claim-1").unwrap().status,
@@ -625,17 +625,17 @@ mod tests {
             .create_claim("claim-1", "A valid claim", at(0))
             .unwrap();
         assert!(engine
-            .attach_evidence(
-                "bad",
-                "claim-1",
-                "crawler",
-                "file:///etc/passwd",
-                "Bad source",
-                "Excerpt",
-                "not-a-sha256",
-                at(1),
-                0.9,
-            )
+            .attach_evidence(EvidenceInput {
+                id: "bad".to_owned(),
+                claim_id: "claim-1".to_owned(),
+                source_id: "crawler".to_owned(),
+                source_url: "file:///etc/passwd".to_owned(),
+                source_title: "Bad source".to_owned(),
+                excerpt: "Excerpt".to_owned(),
+                content_hash: "not-a-sha256".to_owned(),
+                retrieved_at: at(1),
+                extraction_confidence: 0.9,
+            })
             .is_err());
     }
 }
