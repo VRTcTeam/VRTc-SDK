@@ -153,10 +153,9 @@ impl RetrievalEngine {
                 ErrorCategory::ResourceExhausted,
             ));
         }
-        if semantic_candidates
-            .iter()
-            .any(|candidate| !candidate.similarity.is_finite() || !(0.0..=1.0).contains(&candidate.similarity))
-        {
+        if semantic_candidates.iter().any(|candidate| {
+            !candidate.similarity.is_finite() || !(0.0..=1.0).contains(&candidate.similarity)
+        }) {
             return Err(retrieval_error(
                 "INVALID_SEMANTIC_SCORE",
                 "Semantic similarity values must be finite and normalized to [0, 1]",
@@ -164,7 +163,9 @@ impl RetrievalEngine {
             ));
         }
 
-        let lexical = self.index.search(query, self.config.max_candidates_per_channel)?;
+        let lexical = self
+            .index
+            .search(query, self.config.max_candidates_per_channel)?;
         let lexical_count = lexical.len();
         let semantic_count = semantic_candidates.len();
         let mut candidates = BTreeMap::<String, CandidateAggregate>::new();
@@ -388,9 +389,14 @@ mod tests {
                 similarity: 0.88,
             },
         ];
-        let response = engine.retrieve("crawler scheduling", &semantic, 10).unwrap();
+        let response = engine
+            .retrieve("crawler scheduling", &semantic, 10)
+            .unwrap();
         assert_eq!(response.stats.semantic_candidates, 2);
-        assert!(response.results.iter().any(|result| result.url == "https://example.org/shared#old"));
+        assert!(response
+            .results
+            .iter()
+            .any(|result| result.url == "https://example.org/shared#old"));
         assert_eq!(
             response
                 .results
