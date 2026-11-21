@@ -1,0 +1,10 @@
+[package]
+name = "vrtc-core"
+version = "0.1.0"
+description = "Language-neutral core contracts and shared types for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
