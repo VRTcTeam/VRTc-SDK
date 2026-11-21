@@ -69,22 +69,26 @@ struct MemoryBackend {
 
 impl StorageBackend for MemoryBackend {
     fn get(&self, key: &str) -> Result<Option<Vec<u8>>, VrtCError> {
-        let values = self.values.read().map_err(|_| storage_error(
-            "STORAGE_LOCK_POISONED",
-            "The in-memory storage read lock is unavailable",
-            ErrorCategory::Internal,
-            true,
-        ))?;
+        let values = self.values.read().map_err(|_| {
+            storage_error(
+                "STORAGE_LOCK_POISONED",
+                "The in-memory storage read lock is unavailable",
+                ErrorCategory::Internal,
+                true,
+            )
+        })?;
         Ok(values.get(key).cloned())
     }
 
     fn apply(&self, operations: &[(String, Option<Vec<u8>>)]) -> Result<(), VrtCError> {
-        let mut values = self.values.write().map_err(|_| storage_error(
-            "STORAGE_LOCK_POISONED",
-            "The in-memory storage write lock is unavailable",
-            ErrorCategory::Internal,
-            true,
-        ))?;
+        let mut values = self.values.write().map_err(|_| {
+            storage_error(
+                "STORAGE_LOCK_POISONED",
+                "The in-memory storage write lock is unavailable",
+                ErrorCategory::Internal,
+                true,
+            )
+        })?;
         for (key, value) in operations {
             if let Some(value) = value {
                 values.insert(key.clone(), value.clone());
@@ -96,12 +100,14 @@ impl StorageBackend for MemoryBackend {
     }
 
     fn scan_prefix(&self, prefix: &str, limit: usize) -> Result<Vec<(String, Vec<u8>)>, VrtCError> {
-        let values = self.values.read().map_err(|_| storage_error(
-            "STORAGE_LOCK_POISONED",
-            "The in-memory storage read lock is unavailable",
-            ErrorCategory::Internal,
-            true,
-        ))?;
+        let values = self.values.read().map_err(|_| {
+            storage_error(
+                "STORAGE_LOCK_POISONED",
+                "The in-memory storage read lock is unavailable",
+                ErrorCategory::Internal,
+                true,
+            )
+        })?;
         Ok(values
             .iter()
             .filter(|(key, _)| key.starts_with(prefix))
@@ -117,7 +123,10 @@ struct RedbBackend {
 
 impl RedbBackend {
     fn open(path: &Path) -> Result<Self, VrtCError> {
-        if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
             std::fs::create_dir_all(parent).map_err(|_| {
                 storage_error(
                     "STORAGE_DIRECTORY_CREATE_FAILED",
@@ -324,12 +333,7 @@ impl StorageEngine {
         self.backend.get(&key)
     }
 
-    pub fn put(
-        &self,
-        namespace: &str,
-        key: &str,
-        value: Vec<u8>,
-    ) -> Result<(), VrtCError> {
+    pub fn put(&self, namespace: &str, key: &str, value: Vec<u8>) -> Result<(), VrtCError> {
         self.apply_batch(vec![StorageOperation::Put {
             namespace: namespace.to_owned(),
             key: key.to_owned(),
@@ -408,7 +412,10 @@ impl StorageEngine {
             .scan_prefix(&prefix, limit)?
             .into_iter()
             .map(|(full_key, value)| {
-                let key = full_key.strip_prefix(&prefix).unwrap_or_default().to_owned();
+                let key = full_key
+                    .strip_prefix(&prefix)
+                    .unwrap_or_default()
+                    .to_owned();
                 Ok(StorageEntry {
                     namespace: namespace.to_owned(),
                     key,
@@ -454,9 +461,9 @@ fn validate_config(config: &StorageConfig) -> Result<(), VrtCError> {
 fn validate_namespace(namespace: &str) -> Result<(), VrtCError> {
     if namespace.is_empty()
         || namespace.len() > 128
-        || !namespace
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte))
+        || !namespace.bytes().all(|byte| {
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"._-".contains(&byte)
+        })
     {
         return Err(storage_error(
             "INVALID_STORAGE_NAMESPACE",
@@ -468,12 +475,7 @@ fn validate_namespace(namespace: &str) -> Result<(), VrtCError> {
     Ok(())
 }
 
-fn storage_error(
-    code: &str,
-    message: &str,
-    category: ErrorCategory,
-    retryable: bool,
-) -> VrtCError {
+fn storage_error(code: &str, message: &str, category: ErrorCategory, retryable: bool) -> VrtCError {
     VrtCError::new(code, message, category, retryable)
 }
 
@@ -500,8 +502,14 @@ mod tests {
             ])
             .unwrap();
         assert_eq!(result.operations_applied, 2);
-        assert_eq!(engine.get("crawler", "page-1").unwrap(), Some(b"first".to_vec()));
-        assert_eq!(engine.get("index", "page-1").unwrap(), Some(b"second".to_vec()));
+        assert_eq!(
+            engine.get("crawler", "page-1").unwrap(),
+            Some(b"first".to_vec())
+        );
+        assert_eq!(
+            engine.get("index", "page-1").unwrap(),
+            Some(b"second".to_vec())
+        );
         assert_eq!(engine.scan_namespace("crawler", 10).unwrap().len(), 1);
         engine.delete("crawler", "page-1").unwrap();
         assert_eq!(engine.get("crawler", "page-1").unwrap(), None);
@@ -525,10 +533,13 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let path = std::env::temp_dir().join(format!("vrtc-storage-{}-{suffix}.redb", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("vrtc-storage-{}-{suffix}.redb", std::process::id()));
         {
             let engine = StorageEngine::open_redb(&path, StorageConfig::default()).unwrap();
-            engine.put("crawler", "persisted", b"durable".to_vec()).unwrap();
+            engine
+                .put("crawler", "persisted", b"durable".to_vec())
+                .unwrap();
         }
         {
             let engine = StorageEngine::open_redb(&path, StorageConfig::default()).unwrap();
