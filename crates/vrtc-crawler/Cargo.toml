@@ -1,0 +1,20 @@
+[package]
+name = "vrtc-crawler"
+version = "0.1.0"
+description = "Native policy-aware crawler orchestration for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+robotstxt = "=0.3.0"
+tokio.workspace = true
+url = "2"
+vrtc-core = { path = "../vrtc-core" }
+vrtc-extract = { path = "../vrtc-extract" }
+vrtc-fetcher = { path = "../vrtc-fetcher" }
+vrtc-frontier = { path = "../vrtc-frontier" }
+vrtc-index = { path = "../vrtc-index" }
+
+[lints]
+workspace = true
