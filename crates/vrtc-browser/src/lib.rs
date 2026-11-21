@@ -492,3 +492,57 @@ mod tests {
         assert_eq!(error.code, "BROWSER_POLICY_DENIED");
     }
 }
+
+
+#[cfg(test)]
+mod engine_abstraction_tests {
+    use super::*;
+
+    #[test]
+    fn chromium_backend_declares_snapshot_only_capabilities() {
+        let info = renderer().info();
+        assert_eq!(info.id, "browser.chromiumoxide");
+        assert_eq!(info.family, BrowserEngineFamily::Chromium);
+        assert!(info.capabilities.renders_fetched_snapshots);
+        assert!(info.capabilities.javascript_control);
+        assert!(info.capabilities.blocks_remote_subresources);
+        assert!(!info.capabilities.supports_live_navigation);
+    }
+
+    #[test]
+    fn registry_rejects_duplicate_engine_ids() {
+        let registry = BrowserEngineRegistry::new();
+        let engine = Arc::new(renderer());
+        registry.register(engine.clone()).unwrap();
+        let error = registry.register(engine).unwrap_err();
+        assert_eq!(error.code, "DUPLICATE_BROWSER_ENGINE");
+    }
+
+    #[test]
+    fn registry_reports_unknown_engine_ids() {
+        let registry = BrowserEngineRegistry::new();
+        let error = registry.engine_info("browser.missing").unwrap_err();
+        assert_eq!(error.code, "BROWSER_ENGINE_NOT_FOUND");
+    }
+
+    #[tokio::test]
+    async fn registry_dispatch_preserves_browser_policy_gate() {
+        let registry = BrowserEngineRegistry::new();
+        registry.register(Arc::new(renderer())).unwrap();
+        let error = registry
+            .render(
+                "browser.chromiumoxide",
+                BrowserRenderRequest {
+                    source_url: "file:///etc/passwd".to_owned(),
+                    origin_url: None,
+                    html: "<h1>blocked</h1>".to_owned(),
+                    is_crawl: false,
+                    crawl_depth: 0,
+                    robots_allowed: None,
+                },
+            )
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "BROWSER_POLICY_DENIED");
+    }
+}
