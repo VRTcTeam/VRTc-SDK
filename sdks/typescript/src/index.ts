@@ -10,11 +10,11 @@ export interface SearchRequest {
 export interface SearchResult {
   title: string;
   url: string;
-  snippet?: string;
-  score?: number;
+  snippet?: string | null;
+  score?: number | null;
   provider_id: string;
-  published_at?: string;
-  language?: string;
+  published_at?: string | null;
+  language?: string | null;
   metadata: Record<string, string>;
 }
 
@@ -102,12 +102,14 @@ export class VrtcClient {
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
+    const headers = new Headers(init.headers);
+    headers.set("Accept", "application/json");
+    if (init.body !== undefined && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     const response = await this.fetchImpl(this.baseUrl + path, {
       ...init,
-      headers: {
-        Accept: "application/json",
-        ...init.headers
-      }
+      headers
     });
 
     const body = await response.text();
