@@ -166,22 +166,25 @@ impl BrowserRenderer {
 
         let offline_html = apply_offline_csp(&request.html);
         let render_result = async {
-            timeout(operation_timeout, page.execute(SetScriptExecutionDisabledParams::new(true)))
-                .await
-                .map_err(|_| {
-                    browser_error(
-                        "BROWSER_SCRIPT_POLICY_TIMEOUT",
-                        "Disabling JavaScript exceeded the configured timeout",
-                        ErrorCategory::ResourceExhausted,
-                    )
-                })?
-                .map_err(|error| {
-                    browser_error(
-                        "BROWSER_SCRIPT_POLICY_FAILED",
-                        &error.to_string(),
-                        ErrorCategory::Internal,
-                    )
-                })?;
+            timeout(
+                operation_timeout,
+                page.execute(SetScriptExecutionDisabledParams::new(true)),
+            )
+            .await
+            .map_err(|_| {
+                browser_error(
+                    "BROWSER_SCRIPT_POLICY_TIMEOUT",
+                    "Disabling JavaScript exceeded the configured timeout",
+                    ErrorCategory::ResourceExhausted,
+                )
+            })?
+            .map_err(|error| {
+                browser_error(
+                    "BROWSER_SCRIPT_POLICY_FAILED",
+                    &error.to_string(),
+                    ErrorCategory::Internal,
+                )
+            })?;
 
             timeout(operation_timeout, page.set_content(offline_html))
                 .await
