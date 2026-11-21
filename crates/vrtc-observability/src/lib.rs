@@ -80,13 +80,14 @@ pub struct ObservabilityStats {
     pub events_dropped: u64,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ObservabilityState {
     metrics: BTreeMap<MetricKey, MetricValue>,
     events: VecDeque<OperationalEvent>,
     events_dropped: u64,
 }
 
+#[derive(Debug)]
 pub struct ObservabilityEngine {
     config: ObservabilityConfig,
     state: Mutex<ObservabilityState>,
@@ -100,7 +101,9 @@ impl ObservabilityEngine {
             || config.max_label_bytes == 0
             || config.max_event_code_bytes == 0
             || config.histogram_buckets.is_empty()
-            || config.histogram_buckets.iter().any(|value| !value.is_finite() || *value <= 0.0)
+            || config.histogram_buckets
+                .iter()
+                .any(|value| !value.is_finite() || *value <= 0.0)
             || config.histogram_buckets.windows(2).any(|pair| pair[0] >= pair[1])
         {
             return Err(observability_error(
@@ -232,7 +235,15 @@ impl ObservabilityEngine {
                                 ErrorCategory::ResourceExhausted,
                             )
                         })?;
-                        *sum += observation;
+                        let next_sum = *sum + observation;
+                        if !next_sum.is_finite() {
+                            return Err(observability_error(
+                                "HISTOGRAM_SUM_OVERFLOW",
+                                "Histogram sum exceeds the supported range",
+                                ErrorCategory::ResourceExhausted,
+                            ));
+                        }
+                        *sum = next_sum;
                         for (index, boundary) in self.config.histogram_buckets.iter().enumerate() {
                             if observation <= *boundary {
                                 cumulative_buckets[index] += 1;
@@ -366,16 +377,27 @@ mod tests {
     #[test]
     fn counters_gauges_and_histograms_are_recorded() {
         let engine = ObservabilityEngine::new(ObservabilityConfig::default()).unwrap();
-        assert_eq!(engine.increment_counter("requests_total", BTreeMap::new(), 2).unwrap(), 2);
-        engine.set_gauge("workers_active", BTreeMap::new(), 3.0).unwrap();
-        engine.observe("request_seconds", BTreeMap::new(), 0.02).unwrap();
+        assert_eq!(
+            engine
+                .increment_counter("requests_total", BTreeMap::new(), 2)
+                .unwrap(),
+            2
+        );
+        engine
+            .set_gauge("workers_active", BTreeMap::new(), 3.0)
+            .unwrap();
+        engine
+            .observe("request_seconds", BTreeMap::new(), 0.02)
+            .unwrap();
         assert_eq!(engine.snapshot().unwrap().len(), 3);
     }
 
     #[test]
     fn metric_type_conflicts_are_rejected() {
         let engine = ObservabilityEngine::new(ObservabilityConfig::default()).unwrap();
-        engine.increment_counter("requests_total", BTreeMap::new(), 1).unwrap();
+        engine
+            .increment_counter("requests_total", BTreeMap::new(), 1)
+            .unwrap();
         assert_eq!(
             engine.set_gauge("requests_total", BTreeMap::new(), 1.0).unwrap_err().code,
             "METRIC_TYPE_CONFLICT"
@@ -390,12 +412,14 @@ mod tests {
         };
         let engine = ObservabilityEngine::new(config).unwrap();
         for code in ["FIRST", "SECOND"] {
-            engine.record_event(OperationalEvent {
-                component_id: "engine.vrtc.search".to_owned(),
-                code: code.to_owned(),
-                severity: EventSeverity::Warning,
-                occurred_at_ms: 1,
-            }).unwrap();
+            engine
+                .record_event(OperationalEvent {
+                    component_id: "engine.vrtc.search".to_owned(),
+                    code: code.to_owned(),
+                    severity: EventSeverity::Warning,
+                    occurred_at_ms: 1,
+                })
+                .unwrap();
         }
         assert_eq!(engine.stats().unwrap().events_dropped, 1);
         assert_eq!(engine.events(10).unwrap()[0].code, "SECOND");
@@ -405,13 +429,19 @@ mod tests {
     fn rejects_non_finite_values_and_invalid_histogram_buckets() {
         let engine = ObservabilityEngine::new(ObservabilityConfig::default()).unwrap();
         assert_eq!(
-            engine.set_gauge("load", BTreeMap::new(), f64::NAN).unwrap_err().code,
+            engine
+                .set_gauge("load", BTreeMap::new(), f64::NAN)
+                .unwrap_err()
+                .code,
             "INVALID_GAUGE_VALUE"
         );
         let config = ObservabilityConfig {
             histogram_buckets: vec![1.0, 0.5],
             ..ObservabilityConfig::default()
         };
-        assert_eq!(ObservabilityEngine::new(config).unwrap_err().code, "INVALID_OBSERVABILITY_CONFIG");
+        assert_eq!(
+            ObservabilityEngine::new(config).unwrap_err().code,
+            "INVALID_OBSERVABILITY_CONFIG"
+        );
     }
 }
