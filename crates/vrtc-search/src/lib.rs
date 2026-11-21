@@ -4,6 +4,7 @@
 //! public-web index. Provider failures are isolated and returned alongside
 //! successful results.
 
+use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -22,6 +23,8 @@ pub struct SearchConfig {
     pub provider_timeout: Duration,
     pub default_limit: usize,
     pub maximum_limit: usize,
+    /// Reciprocal Rank Fusion constant used to combine independent source rankings.
+    pub rrf_constant: usize,
 }
 
 impl Default for SearchConfig {
@@ -31,6 +34,7 @@ impl Default for SearchConfig {
             provider_timeout: Duration::from_secs(10),
             default_limit: 10,
             maximum_limit: 100,
+            rrf_constant: 60,
         }
     }
 }
@@ -57,6 +61,7 @@ impl SearchEngine {
             || config.default_limit == 0
             || config.maximum_limit == 0
             || config.default_limit > config.maximum_limit
+            || config.rrf_constant == 0
         {
             return Err(VrtCError::new(
                 "INVALID_SEARCH_CONFIG",
@@ -207,7 +212,7 @@ impl SearchEngine {
             });
         }
 
-        let mut results = Vec::new();
+        let mut source_results = BTreeMap::<String, Vec<SearchResult>>::new();
         let mut provider_errors = Vec::new();
 
         while let Some(joined) = tasks.join_next().await {
@@ -219,7 +224,7 @@ impl SearchEngine {
                             result.score = None;
                         }
                     }
-                    results.extend(provider_results);
+                    source_results.insert(provider_id, provider_results);
                 }
                 Ok(Err(error)) => provider_errors.push(ProviderSearchError {
                     provider_id: error
@@ -239,18 +244,100 @@ impl SearchEngine {
             }
         }
 
-        results.retain(|result| matches_filters(result, &request));
+        // Fuse provider-local ranks rather than comparing raw scores that may
+        // use incompatible scales across independent search systems.
+        let mut fused = BTreeMap::<String, SearchResult>::new();
+        let mut fused_scores = BTreeMap::<String, f64>::new();
+        let mut contributing_sources = BTreeMap::<String, BTreeMap<String, usize>>::new();
+
+        for (provider_id, provider_results) in source_results {
+            let mut seen_in_source = HashSet::new();
+            let mut rank = 0_usize;
+            for mut result in provider_results {
+                if !matches_filters(&result, &request) {
+                    continue;
+                }
+                let key = canonicalize_url(&result.url);
+                if key.is_empty() || !seen_in_source.insert(key.clone()) {
+                    continue;
+                }
+                rank += 1;
+                let contribution = 1.0 / (self.config.rrf_constant as f64 + rank as f64);
+                *fused_scores.entry(key.clone()).or_default() += contribution;
+                contributing_sources
+                    .entry(key.clone())
+                    .or_default()
+                    .insert(provider_id.clone(), rank);
+
+                match fused.get_mut(&key) {
+                    Some(existing) => {
+                        if existing.title.is_empty() {
+                            existing.title.clone_from(&result.title);
+                        }
+                        if existing.snippet.is_none() {
+                            existing.snippet.clone_from(&result.snippet);
+                        }
+                        if existing.published_at.is_none() {
+                            existing.published_at.clone_from(&result.published_at);
+                        }
+                        if existing.language.is_none() {
+                            existing.language.clone_from(&result.language);
+                        }
+                        if let Some(raw_score) = result.score {
+                            existing.metadata.insert(
+                                format!("vrtc.provider_score.{provider_id}"),
+                                raw_score.to_string(),
+                            );
+                        }
+                    }
+                    None => {
+                        if let Some(raw_score) = result.score {
+                            result.metadata.insert(
+                                format!("vrtc.provider_score.{provider_id}"),
+                                raw_score.to_string(),
+                            );
+                        }
+                        fused.insert(key, result);
+                    }
+                }
+            }
+        }
+
+        let mut results = fused
+            .into_iter()
+            .map(|(key, mut result)| {
+                let score = fused_scores.get(&key).copied().unwrap_or_default();
+                let sources = contributing_sources.remove(&key).unwrap_or_default();
+                result.score = Some(score);
+                result
+                    .metadata
+                    .insert("vrtc.metasearch.rrf_score".to_owned(), score.to_string());
+                result.metadata.insert(
+                    "vrtc.metasearch.source_count".to_owned(),
+                    sources.len().to_string(),
+                );
+                result.metadata.insert(
+                    "vrtc.metasearch.provider_ranks".to_owned(),
+                    sources
+                        .iter()
+                        .map(|(provider, rank)| format!("{provider}:{rank}"))
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                result
+            })
+            .collect::<Vec<_>>();
+
         results.sort_by(|left, right| {
             right
                 .score
-                .unwrap_or(0.0)
-                .total_cmp(&left.score.unwrap_or(0.0))
-                .then_with(|| left.title.cmp(&right.title))
+                .unwrap_or_default()
+                .total_cmp(&left.score.unwrap_or_default())
+                .then_with(|| left.url.cmp(&right.url))
         });
-
-        let mut seen_urls = std::collections::HashSet::new();
-        results.retain(|result| seen_urls.insert(canonicalize_url(&result.url)));
         results.truncate(request.limit);
+        provider_errors.sort_by(|left, right| left.provider_id.cmp(&right.provider_id));
+        providers_queried.sort();
 
         Ok(SearchResponse {
             query: request.query,
@@ -401,6 +488,76 @@ mod tests {
             .unwrap_err();
 
         assert_eq!(error.category, ErrorCategory::DuplicateId);
+    }
+
+    struct MultiResultProvider {
+        provider_id: &'static str,
+        results: Vec<SearchResult>,
+    }
+
+    #[async_trait]
+    impl SearchProvider for MultiResultProvider {
+        fn id(&self) -> &str {
+            self.provider_id
+        }
+
+        async fn search(&self, _request: SearchRequest) -> Result<Vec<SearchResult>, VrtCError> {
+            Ok(self.results.clone())
+        }
+    }
+
+    fn result(title: &str, url: &str, score: f64) -> SearchResult {
+        SearchResult {
+            title: title.to_owned(),
+            url: url.to_owned(),
+            snippet: Some("metasearch test".to_owned()),
+            score: Some(score),
+            provider_id: String::new(),
+            published_at: None,
+            language: Some("en".to_owned()),
+            metadata: BTreeMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn metasearch_uses_rank_fusion_instead_of_comparing_raw_provider_scores() {
+        let engine = SearchEngine::new(SearchConfig::default()).unwrap();
+        engine
+            .register_provider(Arc::new(MultiResultProvider {
+                provider_id: "provider.alpha",
+                results: vec![
+                    result("Document A", "https://example.org/a", 0.01),
+                    result("Document B", "https://example.org/b", 0.99),
+                ],
+            }))
+            .unwrap();
+        engine
+            .register_provider(Arc::new(MultiResultProvider {
+                provider_id: "provider.beta",
+                results: vec![
+                    result("Document A", "https://example.org/a#fragment", 0.10),
+                    result("Document B", "https://example.org/b", 0.90),
+                ],
+            }))
+            .unwrap();
+
+        let response = engine
+            .search(SearchRequest::new("independent search systems"))
+            .await
+            .unwrap();
+
+        assert_eq!(response.results.len(), 2);
+        assert_eq!(response.results[0].title, "Document A");
+        assert_eq!(response.results[1].title, "Document B");
+        assert!(response.results[0].score > response.results[1].score);
+        assert_eq!(
+            response.results[0].metadata["vrtc.metasearch.source_count"],
+            "2"
+        );
+        assert!(response.results[0]
+            .metadata
+            .contains_key("vrtc.provider_score.provider.alpha"));
+        assert_eq!(response.providers_queried.len(), 2);
     }
 
     #[test]

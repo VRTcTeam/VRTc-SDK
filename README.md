@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -66,6 +66,10 @@ Implemented foundation:
 The VRTc Search Engine coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
 
 External search services are optional adapters. The core SDK does not require a paid provider to exist. The current implementation does not include a built-in public-web index or claim to search the internet without a configured provider.
+
+## Native Metasearch & Federated Search
+
+VRTc's native Metasearch capability fans out queries to registered local or remote search sources, isolates per-source timeouts/failures, filters results, deduplicates canonical URLs, and fuses source-local rankings using Reciprocal Rank Fusion. It does not compare raw relevance scores from unrelated providers. Source ranks and original source scores remain available as metadata. Search and Metasearch share one source registry and concurrency policy. See [M12 Native Metasearch Specification](docs/specifications/m12-native-metasearch.md).
 
 ## Native URL Frontier & Scheduler
 
