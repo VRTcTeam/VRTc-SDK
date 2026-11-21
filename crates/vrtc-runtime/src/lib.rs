@@ -8,6 +8,7 @@ use vrtc_core::{
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
+use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_registry::Registry;
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 
@@ -15,12 +16,15 @@ const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
 const FRONTIER_ENGINE_ID: &str = "engine.vrtc.frontier";
 const FRONTIER_CAPABILITY_ID: &str = "crawl.frontier";
+const FETCHER_ENGINE_ID: &str = "engine.vrtc.fetcher";
+const FETCHER_CAPABILITY_ID: &str = "http.fetch";
 
 /// Runtime configuration for the initial Search Engine subsystem.
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     pub search: SearchConfig,
     pub frontier: FrontierConfig,
+    pub fetch: FetchConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -28,6 +32,7 @@ pub struct VrtcRuntime {
     registry: Arc<Registry>,
     search: Arc<SearchEngine>,
     frontier: Arc<FrontierEngine>,
+    fetcher: Arc<FetchEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -37,15 +42,19 @@ impl VrtcRuntime {
         let registry = Arc::new(Registry::new());
         let search = Arc::new(SearchEngine::new(config.search)?);
         let frontier = Arc::new(FrontierEngine::new(config.frontier)?);
+        let fetcher = Arc::new(FetchEngine::new(config.fetch)?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
         registry.register_static_engine(frontier_engine_descriptor())?;
         registry.activate_engine(FRONTIER_ENGINE_ID)?;
+        registry.register_static_engine(fetcher_engine_descriptor())?;
+        registry.activate_engine(FETCHER_ENGINE_ID)?;
 
         Ok(Self {
             registry,
             search,
             frontier,
+            fetcher,
             registration_lock: Mutex::new(()),
         })
     }
@@ -143,6 +152,12 @@ impl VrtcRuntime {
         Arc::clone(&self.frontier)
     }
 
+    /// Shared native HTTP Fetcher handle for crawler and research workflows.
+    #[must_use]
+    pub fn fetch_engine(&self) -> Arc<FetchEngine> {
+        Arc::clone(&self.fetcher)
+    }
+
     /// Execute a search through the runtime-owned Search Engine.
     pub async fn search(&self, request: SearchRequest) -> Result<SearchResponse, VrtCError> {
         self.search.search(request).await
@@ -189,6 +204,31 @@ fn frontier_engine_descriptor() -> EngineDescriptor {
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::new(),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
+fn fetcher_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: FETCHER_ENGINE_ID.to_owned(),
+        name: "VRTc HTTP Fetcher Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "fetcher".to_owned(),
+        capabilities: vec![Capability {
+            id: FETCHER_CAPABILITY_ID.to_owned(),
+            operations: vec!["fetch".to_owned()],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("schemes".to_owned(), "http,https".to_owned()),
+                ("network_scope".to_owned(), "public-addresses-only".to_owned()),
+                ("response_limit".to_owned(), "configurable".to_owned()),
+            ]),
             availability: CapabilityAvailability::Available,
         }],
         lifecycle_state: LifecycleState::Discovered,
@@ -299,6 +339,15 @@ mod tests {
 
         assert_eq!(error.code, "PROVIDER_ID_MISMATCH");
         assert!(runtime.registry().provider("provider.descriptor").is_none());
+    }
+
+    #[test]
+    fn built_in_fetcher_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(FETCHER_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "fetcher");
+        assert_eq!(engine.capabilities[0].id, FETCHER_CAPABILITY_ID);
     }
 
     #[test]
