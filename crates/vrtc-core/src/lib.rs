@@ -96,7 +96,8 @@ pub struct ProviderDescriptor {
 }
 
 /// Stable error categories shared by runtime and language clients.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ErrorCategory {
     Validation,
     ContractIncompatible,
@@ -114,7 +115,7 @@ pub enum ErrorCategory {
 }
 
 /// Structured error. Details must be safe and must not contain secrets.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct VrtCError {
     pub code: String,
     pub message: String,
@@ -151,15 +152,20 @@ impl VrtCError {
 
 
 /// Canonical request shared by the VRTc Search Engine and provider adapters.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SearchRequest {
     pub query: String,
     /// Zero asks the engine to apply its configured default.
+    #[serde(default)]
     pub limit: usize,
+    #[serde(default)]
     pub language: Option<String>,
+    #[serde(default)]
     pub domains: Vec<String>,
     /// RFC 3339 timestamps; lexical comparison is valid for normalized UTC values.
+    #[serde(default)]
     pub published_after: Option<String>,
+    #[serde(default)]
     pub published_before: Option<String>,
 }
 
@@ -178,7 +184,7 @@ impl SearchRequest {
 }
 
 /// One normalized search result with provider provenance.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SearchResult {
     pub title: String,
     pub url: String,
@@ -191,7 +197,7 @@ pub struct SearchResult {
 }
 
 /// Safe, structured failure reported by an individual search provider.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ProviderSearchError {
     pub provider_id: ComponentId,
     pub code: String,
@@ -200,7 +206,7 @@ pub struct ProviderSearchError {
 }
 
 /// Aggregated response returned by the VRTc Search Engine.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SearchResponse {
     pub query: String,
     pub results: Vec<SearchResult>,
