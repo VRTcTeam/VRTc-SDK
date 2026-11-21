@@ -13,6 +13,7 @@ vrtc-core = { path = "../vrtc-core" }
 vrtc-frontier = { path = "../vrtc-frontier" }
 vrtc-fetcher = { path = "../vrtc-fetcher" }
 vrtc-extract = { path = "../vrtc-extract" }
+vrtc-index = { path = "../vrtc-index" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
