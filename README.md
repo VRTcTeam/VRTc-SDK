@@ -55,6 +55,7 @@ The first subsystem is a VRTc-owned orchestration layer with provider-neutral co
 Implemented foundation:
 
 - async provider interface and runtime registration;
+- optional Geekflare Search API adapter for web, news, and image result sources;
 - bounded concurrent provider dispatch;
 - per-provider timeout and failure isolation;
 - query normalization and request validation;
