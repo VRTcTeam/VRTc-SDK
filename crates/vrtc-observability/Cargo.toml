@@ -1,0 +1,13 @@
+[package]
+name = "vrtc-observability"
+version = "0.1.0"
+description = "Native bounded metrics, event, and trace observability engine for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
