@@ -140,6 +140,32 @@ impl RedbBackend {
                 false,
             )
         })?;
+        let transaction = database.begin_write().map_err(|_| {
+            storage_error(
+                "STORAGE_TABLE_INIT_FAILED",
+                "The embedded database could not initialize its key-value table",
+                ErrorCategory::Internal,
+                false,
+            )
+        })?;
+        {
+            let _table = transaction.open_table(KV_TABLE).map_err(|_| {
+                storage_error(
+                    "STORAGE_TABLE_INIT_FAILED",
+                    "The embedded key-value table could not be initialized",
+                    ErrorCategory::Internal,
+                    false,
+                )
+            })?;
+        }
+        transaction.commit().map_err(|_| {
+            storage_error(
+                "STORAGE_TABLE_INIT_FAILED",
+                "The embedded key-value table initialization could not be committed",
+                ErrorCategory::Internal,
+                false,
+            )
+        })?;
         Ok(Self { database })
     }
 }
