@@ -7,8 +7,8 @@ use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
-use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
+use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_registry::Registry;
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 
