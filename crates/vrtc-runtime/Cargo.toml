@@ -26,6 +26,7 @@ vrtc-observability = { path = "../vrtc-observability" }
 vrtc-policy = { path = "../vrtc-policy" }
 vrtc-archive = { path = "../vrtc-archive" }
 vrtc-browser = { path = "../vrtc-browser" }
+vrtc-network = { path = "../vrtc-network" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
