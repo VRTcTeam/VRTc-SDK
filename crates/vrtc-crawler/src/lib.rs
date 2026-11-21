@@ -14,8 +14,8 @@ use vrtc_core::{ErrorCategory, VrtCError};
 use vrtc_extract::ExtractionEngine;
 use vrtc_fetcher::FetchEngine;
 use vrtc_frontier::{CrawlRequest, EnqueueOutcome, FrontierEngine, FrontierStats, RetryOutcome};
-use vrtc_index::{IndexDocument, IndexEngine};
 use vrtc_delta::{ChangeKind, DeltaEngine};
+use vrtc_index::{IndexDocument, IndexEngine};
 
 #[derive(Debug, Clone)]
 pub struct CrawlerConfig {
@@ -291,7 +291,11 @@ impl CrawlerEngine {
                 source: "vrtc-native-crawler".to_owned(),
             };
 
-            if self.index.index_batch(std::slice::from_ref(&document)).is_err() {
+            if self
+                .index
+                .index_batch(std::slice::from_ref(&document))
+                .is_err()
+            {
                 self.retry_lease(&lease.id, Duration::from_secs(2), &mut report)?;
                 continue;
             }
