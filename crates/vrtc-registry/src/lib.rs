@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 use vrtc_core::{
-    CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
-    ProviderDescriptor, RegistrationSource, VrtCError,
+    CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState, ProviderDescriptor,
+    RegistrationSource, VrtCError,
 };
 
 /// Thread-safe catalog with separate engine and provider namespaces.
@@ -52,7 +52,10 @@ impl Registry {
         descriptor.lifecycle_state = LifecycleState::Registered;
 
         let mut engines = self.engines.write().map_err(|_| {
-            internal_error("ENGINE_REGISTRY_LOCK_POISONED", "Engine registry lock is unavailable")
+            internal_error(
+                "ENGINE_REGISTRY_LOCK_POISONED",
+                "Engine registry lock is unavailable",
+            )
         })?;
         if engines.contains_key(&descriptor.id) {
             return Err(duplicate_error(&descriptor.id));
@@ -89,7 +92,10 @@ impl Registry {
         descriptor.lifecycle_state = LifecycleState::Registered;
 
         let mut providers = self.providers.write().map_err(|_| {
-            internal_error("PROVIDER_REGISTRY_LOCK_POISONED", "Provider registry lock is unavailable")
+            internal_error(
+                "PROVIDER_REGISTRY_LOCK_POISONED",
+                "Provider registry lock is unavailable",
+            )
         })?;
         if providers.contains_key(&descriptor.id) {
             return Err(duplicate_error(&descriptor.id));
@@ -100,11 +106,12 @@ impl Registry {
 
     pub fn activate_engine(&self, id: &str) -> Result<(), VrtCError> {
         let mut engines = self.engines.write().map_err(|_| {
-            internal_error("ENGINE_REGISTRY_LOCK_POISONED", "Engine registry lock is unavailable")
+            internal_error(
+                "ENGINE_REGISTRY_LOCK_POISONED",
+                "Engine registry lock is unavailable",
+            )
         })?;
-        let descriptor = engines
-            .get_mut(id)
-            .ok_or_else(|| not_found_error(id))?;
+        let descriptor = engines.get_mut(id).ok_or_else(|| not_found_error(id))?;
         match descriptor.lifecycle_state {
             LifecycleState::Registered | LifecycleState::Disabled | LifecycleState::Degraded => {
                 descriptor.lifecycle_state = LifecycleState::Ready;
@@ -116,11 +123,12 @@ impl Registry {
 
     pub fn activate_provider(&self, id: &str) -> Result<(), VrtCError> {
         let mut providers = self.providers.write().map_err(|_| {
-            internal_error("PROVIDER_REGISTRY_LOCK_POISONED", "Provider registry lock is unavailable")
+            internal_error(
+                "PROVIDER_REGISTRY_LOCK_POISONED",
+                "Provider registry lock is unavailable",
+            )
         })?;
-        let descriptor = providers
-            .get_mut(id)
-            .ok_or_else(|| not_found_error(id))?;
+        let descriptor = providers.get_mut(id).ok_or_else(|| not_found_error(id))?;
         match descriptor.lifecycle_state {
             LifecycleState::Registered | LifecycleState::Disabled | LifecycleState::Degraded => {
                 descriptor.lifecycle_state = LifecycleState::Ready;
@@ -132,31 +140,47 @@ impl Registry {
 
     pub fn disable_engine(&self, id: &str) -> Result<(), VrtCError> {
         let mut engines = self.engines.write().map_err(|_| {
-            internal_error("ENGINE_REGISTRY_LOCK_POISONED", "Engine registry lock is unavailable")
+            internal_error(
+                "ENGINE_REGISTRY_LOCK_POISONED",
+                "Engine registry lock is unavailable",
+            )
         })?;
-        let descriptor = engines
-            .get_mut(id)
-            .ok_or_else(|| not_found_error(id))?;
-        if matches!(descriptor.lifecycle_state, LifecycleState::Ready | LifecycleState::Degraded) {
+        let descriptor = engines.get_mut(id).ok_or_else(|| not_found_error(id))?;
+        if matches!(
+            descriptor.lifecycle_state,
+            LifecycleState::Ready | LifecycleState::Degraded
+        ) {
             descriptor.lifecycle_state = LifecycleState::Disabled;
             Ok(())
         } else {
-            Err(lifecycle_error(id, descriptor.lifecycle_state, LifecycleState::Disabled))
+            Err(lifecycle_error(
+                id,
+                descriptor.lifecycle_state,
+                LifecycleState::Disabled,
+            ))
         }
     }
 
     pub fn disable_provider(&self, id: &str) -> Result<(), VrtCError> {
         let mut providers = self.providers.write().map_err(|_| {
-            internal_error("PROVIDER_REGISTRY_LOCK_POISONED", "Provider registry lock is unavailable")
+            internal_error(
+                "PROVIDER_REGISTRY_LOCK_POISONED",
+                "Provider registry lock is unavailable",
+            )
         })?;
-        let descriptor = providers
-            .get_mut(id)
-            .ok_or_else(|| not_found_error(id))?;
-        if matches!(descriptor.lifecycle_state, LifecycleState::Ready | LifecycleState::Degraded) {
+        let descriptor = providers.get_mut(id).ok_or_else(|| not_found_error(id))?;
+        if matches!(
+            descriptor.lifecycle_state,
+            LifecycleState::Ready | LifecycleState::Degraded
+        ) {
             descriptor.lifecycle_state = LifecycleState::Disabled;
             Ok(())
         } else {
-            Err(lifecycle_error(id, descriptor.lifecycle_state, LifecycleState::Disabled))
+            Err(lifecycle_error(
+                id,
+                descriptor.lifecycle_state,
+                LifecycleState::Disabled,
+            ))
         }
     }
 
@@ -178,11 +202,13 @@ impl Registry {
         engines
             .values()
             .filter(|engine| {
-                matches!(engine.lifecycle_state, LifecycleState::Ready | LifecycleState::Degraded)
-                    && engine.capabilities.iter().any(|capability| {
-                        capability.id == capability_id
-                            && capability.availability != CapabilityAvailability::Unavailable
-                    })
+                matches!(
+                    engine.lifecycle_state,
+                    LifecycleState::Ready | LifecycleState::Degraded
+                ) && engine.capabilities.iter().any(|capability| {
+                    capability.id == capability_id
+                        && capability.availability != CapabilityAvailability::Unavailable
+                })
             })
             .cloned()
             .collect()
@@ -196,11 +222,13 @@ impl Registry {
         providers
             .values()
             .filter(|provider| {
-                matches!(provider.lifecycle_state, LifecycleState::Ready | LifecycleState::Degraded)
-                    && provider.capabilities.iter().any(|capability| {
-                        capability.id == capability_id
-                            && capability.availability != CapabilityAvailability::Unavailable
-                    })
+                matches!(
+                    provider.lifecycle_state,
+                    LifecycleState::Ready | LifecycleState::Degraded
+                ) && provider.capabilities.iter().any(|capability| {
+                    capability.id == capability_id
+                        && capability.availability != CapabilityAvailability::Unavailable
+                })
             })
             .cloned()
             .collect()
@@ -245,7 +273,10 @@ fn validate_capabilities(
         if capability.id.trim().is_empty()
             || capability.input_contract_version.trim().is_empty()
             || capability.output_contract_version.trim().is_empty()
-            || capability.operations.iter().any(|operation| operation.trim().is_empty())
+            || capability
+                .operations
+                .iter()
+                .any(|operation| operation.trim().is_empty())
         {
             return Err(VrtCError::new(
                 "INVALID_CAPABILITY",
@@ -279,11 +310,7 @@ fn not_found_error(id: &str) -> VrtCError {
     .for_component(id)
 }
 
-fn lifecycle_error(
-    id: &str,
-    current: LifecycleState,
-    requested: LifecycleState,
-) -> VrtCError {
+fn lifecycle_error(id: &str, current: LifecycleState, requested: LifecycleState) -> VrtCError {
     VrtCError::new(
         "INVALID_LIFECYCLE_TRANSITION",
         format!("Cannot transition component from {current:?} to {requested:?}"),
@@ -301,9 +328,7 @@ fn internal_error(code: &str, message: &str) -> VrtCError {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
-    use vrtc_core::{
-        Capability, ConnectionMode, EngineDescriptor, ProviderDescriptor,
-    };
+    use vrtc_core::{Capability, ConnectionMode, EngineDescriptor, ProviderDescriptor};
 
     fn capability() -> Capability {
         Capability {
@@ -347,9 +372,14 @@ mod tests {
     #[test]
     fn dynamic_engine_is_registered_and_discoverable_after_activation() {
         let registry = Registry::new();
-        registry.register_dynamic_engine(engine("engine.vrtc.search")).unwrap();
+        registry
+            .register_dynamic_engine(engine("engine.vrtc.search"))
+            .unwrap();
         assert_eq!(
-            registry.engine("engine.vrtc.search").unwrap().registration_source,
+            registry
+                .engine("engine.vrtc.search")
+                .unwrap()
+                .registration_source,
             RegistrationSource::Dynamic
         );
         assert!(registry.engines_for_capability("search.query").is_empty());
@@ -360,15 +390,21 @@ mod tests {
     #[test]
     fn duplicate_engine_identifier_is_rejected() {
         let registry = Registry::new();
-        registry.register_static_engine(engine("engine.vrtc.search")).unwrap();
-        let error = registry.register_static_engine(engine("engine.vrtc.search")).unwrap_err();
+        registry
+            .register_static_engine(engine("engine.vrtc.search"))
+            .unwrap();
+        let error = registry
+            .register_static_engine(engine("engine.vrtc.search"))
+            .unwrap_err();
         assert_eq!(error.category, ErrorCategory::DuplicateId);
     }
 
     #[test]
     fn provider_registration_and_disable_are_isolated() {
         let registry = Registry::new();
-        registry.register_static_provider(provider("provider.local.demo")).unwrap();
+        registry
+            .register_static_provider(provider("provider.local.demo"))
+            .unwrap();
         registry.activate_provider("provider.local.demo").unwrap();
         assert_eq!(registry.providers_for_capability("search.query").len(), 1);
         registry.disable_provider("provider.local.demo").unwrap();

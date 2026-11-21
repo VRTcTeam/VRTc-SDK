@@ -35,7 +35,12 @@ async fn search_endpoint(
     State(state): State<ApiState>,
     Json(request): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, ApiError> {
-    state.search.search(request).await.map(Json).map_err(ApiError)
+    state
+        .search
+        .search(request)
+        .await
+        .map(Json)
+        .map_err(ApiError)
 }
 
 async fn providers_endpoint(State(state): State<ApiState>) -> Json<ProvidersResponse> {

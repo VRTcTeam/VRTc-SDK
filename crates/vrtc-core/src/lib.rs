@@ -150,7 +150,6 @@ impl VrtCError {
     }
 }
 
-
 /// Canonical request shared by the VRTc Search Engine and provider adapters.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct SearchRequest {

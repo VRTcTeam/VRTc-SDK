@@ -95,15 +95,13 @@ impl SearchEngine {
         })?;
 
         if providers.iter().any(|registered| registered.id() == id) {
-            return Err(
-                VrtCError::new(
-                    "DUPLICATE_PROVIDER_ID",
-                    "A search provider with this identifier is already registered",
-                    ErrorCategory::DuplicateId,
-                    false,
-                )
-                .for_component(id),
-            );
+            return Err(VrtCError::new(
+                "DUPLICATE_PROVIDER_ID",
+                "A search provider with this identifier is already registered",
+                ErrorCategory::DuplicateId,
+                false,
+            )
+            .for_component(id));
         }
 
         providers.push(provider);
@@ -116,7 +114,10 @@ impl SearchEngine {
         let Ok(providers) = self.providers.read() else {
             return Vec::new();
         };
-        let mut ids = providers.iter().map(|provider| provider.id().to_owned()).collect::<Vec<_>>();
+        let mut ids = providers
+            .iter()
+            .map(|provider| provider.id().to_owned())
+            .collect::<Vec<_>>();
         ids.sort();
         ids
     }
@@ -146,14 +147,18 @@ impl SearchEngine {
             ));
         }
 
-        let providers = self.providers.read().map_err(|_| {
-            VrtCError::new(
-                "SEARCH_PROVIDER_LOCK_POISONED",
-                "Search provider catalog is unavailable",
-                ErrorCategory::Internal,
-                true,
-            )
-        })?.clone();
+        let providers = self
+            .providers
+            .read()
+            .map_err(|_| {
+                VrtCError::new(
+                    "SEARCH_PROVIDER_LOCK_POISONED",
+                    "Search provider catalog is unavailable",
+                    ErrorCategory::Internal,
+                    true,
+                )
+            })?
+            .clone();
 
         if providers.is_empty() {
             return Err(VrtCError::new(
@@ -185,17 +190,17 @@ impl SearchEngine {
                     )
                 })?;
 
-                let provider_result = match tokio::time::timeout(timeout, provider.search(request)).await {
+                let provider_result = match tokio::time::timeout(timeout, provider.search(request))
+                    .await
+                {
                     Ok(result) => result.map_err(|error| error.for_component(provider_id.clone())),
-                    Err(_) => Err(
-                        VrtCError::new(
-                            "PROVIDER_TIMEOUT",
-                            "Search provider exceeded its configured time limit",
-                            ErrorCategory::Timeout,
-                            true,
-                        )
-                        .for_component(provider_id.clone()),
-                    ),
+                    Err(_) => Err(VrtCError::new(
+                        "PROVIDER_TIMEOUT",
+                        "Search provider exceeded its configured time limit",
+                        ErrorCategory::Timeout,
+                        true,
+                    )
+                    .for_component(provider_id.clone())),
                 };
 
                 provider_result.map(|results| (provider_id, results))
@@ -217,7 +222,10 @@ impl SearchEngine {
                     results.extend(provider_results);
                 }
                 Ok(Err(error)) => provider_errors.push(ProviderSearchError {
-                    provider_id: error.component_id.clone().unwrap_or_else(|| "unknown".to_owned()),
+                    provider_id: error
+                        .component_id
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_owned()),
                     code: error.code,
                     message: error.message,
                     retryable: error.retryable,
@@ -233,7 +241,10 @@ impl SearchEngine {
 
         results.retain(|result| matches_filters(result, &request));
         results.sort_by(|left, right| {
-            right.score.unwrap_or(0.0).total_cmp(&left.score.unwrap_or(0.0))
+            right
+                .score
+                .unwrap_or(0.0)
+                .total_cmp(&left.score.unwrap_or(0.0))
                 .then_with(|| left.title.cmp(&right.title))
         });
 
@@ -256,7 +267,11 @@ fn normalize_query(query: &str) -> String {
 
 fn matches_filters(result: &SearchResult, request: &SearchRequest) -> bool {
     if let Some(language) = &request.language {
-        if !result.language.as_ref().is_some_and(|value| value.eq_ignore_ascii_case(language)) {
+        if !result
+            .language
+            .as_ref()
+            .is_some_and(|value| value.eq_ignore_ascii_case(language))
+        {
             return false;
         }
     }
@@ -272,13 +287,21 @@ fn matches_filters(result: &SearchResult, request: &SearchRequest) -> bool {
     }
 
     if let Some(after) = &request.published_after {
-        if !result.published_at.as_ref().is_some_and(|date| date >= after) {
+        if !result
+            .published_at
+            .as_ref()
+            .is_some_and(|date| date >= after)
+        {
             return false;
         }
     }
 
     if let Some(before) = &request.published_before {
-        if !result.published_at.as_ref().is_some_and(|date| date <= before) {
+        if !result
+            .published_at
+            .as_ref()
+            .is_some_and(|date| date <= before)
+        {
             return false;
         }
     }
@@ -308,8 +331,7 @@ fn canonicalize_url(url: &str) -> String {
     let Some((scheme, remainder)) = without_fragment.split_once("://") else {
         return without_fragment.trim_end_matches('/').to_owned();
     };
-    let authority_end = remainder.find(|character| character == '/' || character == '?')
-        .unwrap_or(remainder.len());
+    let authority_end = remainder.find(['/', '?']).unwrap_or(remainder.len());
     let authority = remainder[..authority_end].to_ascii_lowercase();
     let suffix = remainder[authority_end..].trim_end_matches('/');
     format!("{}://{}{}", scheme.to_ascii_lowercase(), authority, suffix)
@@ -347,9 +369,16 @@ mod tests {
     #[tokio::test]
     async fn search_normalizes_query_and_records_provider_provenance() {
         let engine = SearchEngine::new(SearchConfig::default()).unwrap();
-        engine.register_provider(Arc::new(FixedProvider { provider_id: "provider.test" })).unwrap();
+        engine
+            .register_provider(Arc::new(FixedProvider {
+                provider_id: "provider.test",
+            }))
+            .unwrap();
 
-        let response = engine.search(SearchRequest::new("  VRTc   SDK  ")).await.unwrap();
+        let response = engine
+            .search(SearchRequest::new("  VRTc   SDK  "))
+            .await
+            .unwrap();
 
         assert_eq!(response.query, "VRTc SDK");
         assert_eq!(response.results.len(), 1);
@@ -360,9 +389,15 @@ mod tests {
     #[tokio::test]
     async fn duplicate_provider_registration_is_rejected() {
         let engine = SearchEngine::new(SearchConfig::default()).unwrap();
-        engine.register_provider(Arc::new(FixedProvider { provider_id: "provider.test" })).unwrap();
+        engine
+            .register_provider(Arc::new(FixedProvider {
+                provider_id: "provider.test",
+            }))
+            .unwrap();
         let error = engine
-            .register_provider(Arc::new(FixedProvider { provider_id: "provider.test" }))
+            .register_provider(Arc::new(FixedProvider {
+                provider_id: "provider.test",
+            }))
             .unwrap_err();
 
         assert_eq!(error.category, ErrorCategory::DuplicateId);
