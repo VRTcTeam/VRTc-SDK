@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
+use chromiumoxide::cdp::browser_protocol::emulation::SetScriptExecutionDisabledParams;
 use futures::StreamExt;
 use tokio::time::timeout;
 use vrtc_core::{ErrorCategory, VrtCError};
@@ -165,7 +166,7 @@ impl BrowserRenderer {
 
         let offline_html = apply_offline_csp(&request.html);
         let render_result = async {
-            timeout(operation_timeout, page.set_javascript_enabled(false))
+            timeout(operation_timeout, page.execute(SetScriptExecutionDisabledParams::new(true)))
                 .await
                 .map_err(|_| {
                     browser_error(
