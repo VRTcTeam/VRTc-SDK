@@ -88,7 +88,7 @@ Browser rendering is a fetch mode, not the crawler itself. VRTc must keep naviga
 | Candidate | Capabilities worth studying | VRTc use |
 |---|---|---|
 | [Trafilatura](https://trafilatura.readthedocs.io/) | Main-text extraction, metadata, links, tables, feeds/sitemaps, multiple output formats | Strong candidate for an adopted extraction backend or benchmark baseline |
-| [jusText](https://github.com/miso-belica/ jusText) | Boilerplate removal while retaining sentence-like text | Secondary extraction strategy |
+| [jusText](https://github.com/miso-belica/jusText) | Boilerplate removal while retaining sentence-like text | Secondary extraction strategy |
 | [Readability](https://github.com/mozilla/readability) | Article extraction and DOM cleanup | Browser-side extraction fallback |
 | [Apache Tika](https://tika.apache.org/) | Parsing document formats and metadata | Non-HTML document parsing |
 | [Crawl4AI](https://docs.crawl4ai.com/) | Browser-aware extraction, structured output, markdown workflows | Cross-layer reference for render + extract |
