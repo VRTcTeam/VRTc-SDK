@@ -421,13 +421,7 @@ mod tests {
             .record_snapshot("file:///etc/passwd", "x", "", "x", observed(1))
             .is_err());
         assert!(engine
-            .record_snapshot(
-                "https://user:pass@example.org/",
-                "x",
-                "",
-                "x",
-                observed(1)
-            )
+            .record_snapshot("https://user:pass@example.org/", "x", "", "x", observed(1))
             .is_err());
     }
 }
