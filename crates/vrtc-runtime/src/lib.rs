@@ -264,12 +264,19 @@ fn extraction_engine_descriptor() -> EngineDescriptor {
         kind: "extractor".to_owned(),
         capabilities: vec![Capability {
             id: EXTRACT_CAPABILITY_ID.to_owned(),
-            operations: vec!["extract_html".to_owned(), "extract_metadata".to_owned(), "extract_links".to_owned()],
+            operations: vec![
+                "extract_html".to_owned(),
+                "extract_metadata".to_owned(),
+                "extract_links".to_owned(),
+            ],
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
                 ("input".to_owned(), "html".to_owned()),
-                ("output".to_owned(), "text,markdown,metadata,links,provenance".to_owned()),
+                (
+                    "output".to_owned(),
+                    "text,markdown,metadata,links,provenance".to_owned(),
+                ),
             ]),
             availability: CapabilityAvailability::Available,
         }],
