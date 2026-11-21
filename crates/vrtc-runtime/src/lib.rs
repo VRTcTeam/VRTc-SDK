@@ -410,7 +410,13 @@ impl VrtcRuntime {
         Arc::clone(&self.browser)
     }
 
-    /// Shared native DNS, TLS policy, and outbound route-planning engine.\n    #[must_use]\n    pub fn network_engine(&self) -> Arc<NetworkEngine> {\n        Arc::clone(&self.network)\n    }\n\n    /// Execute a search through the runtime-owned Search Engine.
+    /// Shared native DNS, TLS policy, and outbound route-planning engine.\n    #[must_use]\n    pub fn network_engine(&self) -> Arc<NetworkEngine> {\n        Arc::clone(&self.network)\n    }\n\n    /// Shared native DNS, TLS policy, and outbound route-planning engine.
+    #[must_use]
+    pub fn network_engine(&self) -> Arc<NetworkEngine> {
+        Arc::clone(&self.network)
+    }
+
+    /// Execute a search through the runtime-owned Search Engine.
     pub async fn search(&self, request: SearchRequest) -> Result<SearchResponse, VrtCError> {
         self.search.search(request).await
     }
