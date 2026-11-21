@@ -330,7 +330,7 @@ impl FeedbackEngine {
             return Err(feedback_error(
                 "ADJUDICATION_NOT_REQUIRED",
                 "Adjudication requires at least two reviewer judgments with a material disagreement",
-                ErrorCategory::Conflict,
+                ErrorCategory::Validation,
             ));
         }
         if judgments.iter().any(|judgment| {
@@ -339,7 +339,7 @@ impl FeedbackEngine {
             return Err(feedback_error(
                 "DUPLICATE_ADJUDICATION",
                 "This document already has an adjudication",
-                ErrorCategory::Conflict,
+                ErrorCategory::Validation,
             ));
         }
         if judgments.len() >= self.config.max_judgments_per_task {
