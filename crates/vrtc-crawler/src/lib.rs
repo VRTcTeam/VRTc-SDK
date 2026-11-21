@@ -24,7 +24,7 @@ pub struct CrawlerConfig {
     pub max_seeds_per_run: usize,
     pub max_links_per_page: usize,
     pub max_depth: usize,
-    pub same_host_only: bool,
+    pub same_origin_only: bool,
     pub user_agent_product_token: String,
     pub robots_cache_ttl: Duration,
     pub robots_failure_cache_ttl: Duration,
@@ -40,7 +40,7 @@ impl Default for CrawlerConfig {
             max_seeds_per_run: 100,
             max_links_per_page: 100,
             max_depth: 2,
-            same_host_only: true,
+            same_origin_only: true,
             user_agent_product_token: "VRTc-Fetcher".to_owned(),
             robots_cache_ttl: Duration::from_secs(24 * 60 * 60),
             robots_failure_cache_ttl: Duration::from_secs(5 * 60),
@@ -289,12 +289,12 @@ impl CrawlerEngine {
 
             report.pages_fetched += 1;
             report.documents_indexed += 1;
-            let source_host = host_of(&response.final_url);
+            let source_host = origin_of(&response.final_url);
             for link in extracted.links.iter().take(self.config.max_links_per_page) {
                 if lease.request.depth >= self.config.max_depth {
                     break;
                 }
-                if self.config.same_host_only && host_of(&link.url) != source_host {
+                if self.config.same_origin_only && origin_of(&link.url) != source_host {
                     report.out_of_scope_links += 1;
                     continue;
                 }
@@ -392,7 +392,7 @@ impl CrawlerEngine {
     }
 }
 
-fn host_of(raw_url: &str) -> String {
+fn origin_of(raw_url: &str) -> String {
     Url::parse(raw_url)
         .ok()
         .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
