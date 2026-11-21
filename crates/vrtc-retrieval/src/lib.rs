@@ -24,7 +24,7 @@ pub struct RetrievalConfig {
 impl Default for RetrievalConfig {
     fn default() -> Self {
         Self {
-            max_candidates_per_channel: 200,
+            max_candidates_per_channel: 100,
             max_results: 100,
             rrf_constant: 60,
             lexical_weight: 0.5,
@@ -66,6 +66,8 @@ pub struct RetrievalResult {
     pub channels: Vec<RetrievalChannel>,
     pub lexical_rank: Option<usize>,
     pub semantic_rank: Option<usize>,
+    pub lexical_score: Option<f32>,
+    pub semantic_similarity: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,6 +98,8 @@ struct CandidateAggregate {
     channels: BTreeSet<RetrievalChannel>,
     lexical_rank: Option<usize>,
     semantic_rank: Option<usize>,
+    lexical_score: Option<f32>,
+    semantic_similarity: Option<f32>,
 }
 
 pub struct RetrievalEngine {
@@ -166,24 +170,26 @@ impl RetrievalEngine {
             let rank = offset + 1;
             let key = canonical_key(&hit.url, &hit.id);
             let aggregate = candidates.entry(key).or_default();
-            merge_lexical(aggregate, hit, rank);
+            merge_lexical(aggregate, hit, rank, &self.config);
         }
 
         for (offset, candidate) in semantic_candidates.iter().enumerate() {
             let rank = offset + 1;
             let key = canonical_key(&candidate.url, &candidate.id);
             let aggregate = candidates.entry(key).or_default();
-            merge_semantic(aggregate, candidate, rank);
+            merge_semantic(aggregate, candidate, rank, &self.config);
         }
 
+        let fused_count = candidates.len();
         let mut results = candidates
             .into_values()
             .map(|mut candidate| {
-                let active_weight = f32::from(candidate.lexical_rank.is_some()) * self.config.lexical_weight
-                    + f32::from(candidate.semantic_rank.is_some()) * self.config.semantic_weight;
-                if active_weight > 0.0 {
-                    candidate.score /= active_weight;
-                }
+                candidate.term_coverage = term_coverage(
+                    query,
+                    &candidate.title,
+                    &candidate.description,
+                    &candidate.excerpt,
+                );
                 candidate.score += candidate.term_coverage * self.config.term_match_weight;
                 RetrievalResult {
                     id: candidate.id,
@@ -198,6 +204,8 @@ impl RetrievalEngine {
                     channels: candidate.channels.into_iter().collect(),
                     lexical_rank: candidate.lexical_rank,
                     semantic_rank: candidate.semantic_rank,
+                    lexical_score: candidate.lexical_score,
+                    semantic_similarity: candidate.semantic_similarity,
                 }
             })
             .collect::<Vec<_>>();
@@ -216,7 +224,7 @@ impl RetrievalEngine {
         let stats = RetrievalStats {
             lexical_candidates: lexical_count,
             semantic_candidates: semantic_count,
-            fused_candidates: lexical_count + semantic_count,
+            fused_candidates: fused_count,
             returned: results.len(),
         };
         Ok(RetrievalResponse {
@@ -227,7 +235,12 @@ impl RetrievalEngine {
     }
 }
 
-fn merge_lexical(aggregate: &mut CandidateAggregate, hit: IndexHit, rank: usize) {
+fn merge_lexical(
+    aggregate: &mut CandidateAggregate,
+    hit: IndexHit,
+    rank: usize,
+    config: &RetrievalConfig,
+) {
     if aggregate.id.is_empty() {
         aggregate.id = hit.id;
         aggregate.url = hit.url;
@@ -236,14 +249,8 @@ fn merge_lexical(aggregate: &mut CandidateAggregate, hit: IndexHit, rank: usize)
         aggregate.excerpt = hit.excerpt;
         aggregate.source = hit.source;
     }
-    aggregate.score += 0.5 / (60.0 + rank as f32);
-    aggregate.term_coverage = aggregate
-        .term_coverage
-        .max(term_coverage(
-            &aggregate.title,
-            &aggregate.description,
-            &aggregate.excerpt,
-        ));
+    aggregate.score += config.lexical_weight / (config.rrf_constant as f32 + rank as f32);
+    aggregate.lexical_score = Some(hit.score);
     aggregate.channels.insert(RetrievalChannel::Lexical);
     aggregate.lexical_rank = Some(rank);
 }
@@ -252,6 +259,7 @@ fn merge_semantic(
     aggregate: &mut CandidateAggregate,
     candidate: &SemanticCandidate,
     rank: usize,
+    config: &RetrievalConfig,
 ) {
     if aggregate.id.is_empty() {
         aggregate.id = candidate.id.clone();
@@ -274,14 +282,8 @@ fn merge_semantic(
             aggregate.source = candidate.source.clone();
         }
     }
-    aggregate.score += 0.5 / (60.0 + rank as f32);
-    aggregate.term_coverage = aggregate
-        .term_coverage
-        .max(term_coverage(
-            &candidate.title,
-            &candidate.description,
-            &candidate.excerpt,
-        ));
+    aggregate.score += config.semantic_weight / (config.rrf_constant as f32 + rank as f32);
+    aggregate.semantic_similarity = Some(candidate.similarity);
     aggregate.channels.insert(RetrievalChannel::Semantic);
     aggregate.semantic_rank = Some(rank);
 }
@@ -297,17 +299,22 @@ fn canonical_key(url: &str, id: &str) -> String {
         .unwrap_or_else(|| format!("id:{id}"))
 }
 
-fn term_coverage(title: &str, description: &str, excerpt: &str) -> f32 {
-    let text = format!("{title} {description} {excerpt}").to_ascii_lowercase();
-    let terms = text
+fn term_coverage(query: &str, title: &str, description: &str, excerpt: &str) -> f32 {
+    let query_terms = query
+        .to_ascii_lowercase()
         .split(|character: char| !character.is_alphanumeric())
         .filter(|term| term.len() > 1)
+        .map(str::to_owned)
         .collect::<BTreeSet<_>>();
-    if terms.is_empty() {
+    if query_terms.is_empty() {
         return 0.0;
     }
-    let _ = terms;
-    0.0
+    let content = format!("{title} {description} {excerpt}").to_ascii_lowercase();
+    let matched = query_terms
+        .iter()
+        .filter(|term| content.contains(term.as_str()))
+        .count();
+    matched as f32 / query_terms.len() as f32
 }
 
 fn valid_weight(value: f32) -> bool {
