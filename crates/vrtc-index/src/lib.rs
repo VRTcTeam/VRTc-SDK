@@ -10,7 +10,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Field, Schema, STORED, STRING, TEXT};
+use tantivy::schema::{Field, Schema, Value, STORED, STRING, TEXT};
 use tantivy::{doc, Index, IndexReader, IndexWriter, TantivyDocument, Term};
 use vrtc_core::{ErrorCategory, VrtCError};
 
@@ -300,7 +300,7 @@ impl IndexEngine {
         })?;
         let searcher = self.reader.searcher();
         let top_docs = searcher
-            .search(&parsed, &TopDocs::with_limit(limit))
+            .search(&parsed, &TopDocs::with_limit(limit).order_by_score())
             .map_err(|_| {
                 index_error(
                     "INDEX_SEARCH_FAILED",
