@@ -1,0 +1,13 @@
+[package]
+name = "vrtc-registry"
+version = "0.1.0"
+description = "Hybrid static and dynamic component registry for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
