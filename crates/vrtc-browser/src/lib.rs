@@ -70,6 +70,7 @@ impl BrowserRenderer {
         if config.operation_timeout_ms == 0
             || config.max_html_bytes == 0
             || config.max_concurrent_renders == 0
+            || config.max_concurrent_renders > Semaphore::MAX_PERMITS
             || config.max_queue_wait_ms == 0
         {
             return Err(browser_error(
@@ -555,6 +556,18 @@ mod engine_abstraction_tests {
 
         let config = BrowserRenderConfig {
             max_queue_wait_ms: 0,
+            ..BrowserRenderConfig::default()
+        };
+        assert!(matches!(
+            BrowserRenderer::new(
+                config,
+                Arc::new(PolicyEngine::new(Default::default()).unwrap()),
+            ),
+            Err(error) if error.code == "INVALID_BROWSER_CONFIG"
+        ));
+
+        let config = BrowserRenderConfig {
+            max_concurrent_renders: Semaphore::MAX_PERMITS + 1,
             ..BrowserRenderConfig::default()
         };
         assert!(matches!(
