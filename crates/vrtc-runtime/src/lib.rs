@@ -18,6 +18,8 @@ use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
+const METASEARCH_ENGINE_ID: &str = "engine.vrtc.metasearch";
+const METASEARCH_CAPABILITY_ID: &str = "metasearch.aggregate";
 const FRONTIER_ENGINE_ID: &str = "engine.vrtc.frontier";
 const FRONTIER_CAPABILITY_ID: &str = "crawl.frontier";
 const FETCHER_ENGINE_ID: &str = "engine.vrtc.fetcher";
@@ -69,6 +71,8 @@ impl VrtcRuntime {
         let feedback = Arc::new(FeedbackEngine::new(config.feedback)?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
+        registry.register_static_engine(metasearch_engine_descriptor())?;
+        registry.activate_engine(METASEARCH_ENGINE_ID)?;
         registry.register_static_engine(frontier_engine_descriptor())?;
         registry.activate_engine(FRONTIER_ENGINE_ID)?;
         registry.register_static_engine(fetcher_engine_descriptor())?;
@@ -182,6 +186,13 @@ impl VrtcRuntime {
         Arc::clone(&self.search)
     }
 
+    /// Shared native Metasearch handle. It uses the same source catalog and
+    /// applies VRTc-owned rank fusion to independent provider result lists.
+    #[must_use]
+    pub fn metasearch_engine(&self) -> Arc<SearchEngine> {
+        Arc::clone(&self.search)
+    }
+
     /// Shared native URL Frontier handle for crawler and fetcher subsystems.
     #[must_use]
     pub fn frontier_engine(&self) -> Arc<FrontierEngine> {
@@ -237,6 +248,37 @@ fn search_engine_descriptor() -> EngineDescriptor {
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::new(),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
+fn metasearch_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: METASEARCH_ENGINE_ID.to_owned(),
+        name: "VRTc Native Metasearch & Rank Fusion".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "metasearch".to_owned(),
+        capabilities: vec![Capability {
+            id: METASEARCH_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "fan_out".to_owned(),
+                "filter".to_owned(),
+                "deduplicate".to_owned(),
+                "rank_fusion".to_owned(),
+                "preserve_provenance".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("fusion".to_owned(), "reciprocal-rank-fusion".to_owned()),
+                ("rrf_constant".to_owned(), "configurable".to_owned()),
+                ("provider_failure".to_owned(), "isolated".to_owned()),
+            ]),
             availability: CapabilityAvailability::Available,
         }],
         lifecycle_state: LifecycleState::Discovered,
@@ -480,6 +522,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_metasearch_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(METASEARCH_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "metasearch");
+        assert_eq!(engine.capabilities[0].id, METASEARCH_CAPABILITY_ID);
     }
 
     #[test]
