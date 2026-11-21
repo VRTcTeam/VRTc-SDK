@@ -347,16 +347,13 @@ impl BrowserEngineRegistry {
                 ErrorCategory::Internal,
             )
         })?;
-        engines
-            .get(id)
-            .map(|engine| engine.info())
-            .ok_or_else(|| {
-                browser_error(
-                    "BROWSER_ENGINE_NOT_FOUND",
-                    "Requested browser engine is not registered",
-                    ErrorCategory::NotFound,
-                )
-            })
+        engines.get(id).map(|engine| engine.info()).ok_or_else(|| {
+            browser_error(
+                "BROWSER_ENGINE_NOT_FOUND",
+                "Requested browser engine is not registered",
+                ErrorCategory::NotFound,
+            )
+        })
     }
 
     pub async fn render(
