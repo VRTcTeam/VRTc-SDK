@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, and the first provider-agnostic Search Engine foundation are implemented. Public HTTP API and language clients are the next integration milestone.
+> Project status: Rust core contracts, hybrid registry, and the first provider-agnostic Search Engine foundation are implemented. Initial Search Engine HTTP router is implemented; language clients are the next integration milestone.
 
 ## Project principles
 
@@ -65,6 +65,10 @@ Implemented foundation:
 The VRTc Search Engine coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
 
 External search services are optional adapters. The core SDK does not require a paid provider to exist. The current implementation does not include a built-in public-web index or claim to search the internet without a configured provider.
+
+## Initial HTTP API
+
+The `vrtc-api` crate exposes an embeddable Axum router with `POST /v1/search`, `GET /v1/providers`, and `GET /v1/health`. The host application remains responsible for listener lifecycle, TLS, authentication, authorization, and rate limiting. See [M4 HTTP API Contract](docs/specifications/m4-http-api.md).
 
 ## Core contracts
 
@@ -135,7 +139,7 @@ This is a target architecture, not a statement that all subsystems are available
 | M1 | Core contracts and registry specification | Specification baseline drafted |
 | M2 | Rust core foundation and registry implementation | Initial implementation committed |
 | M3 | First Search Engine implementation | Initial provider-agnostic engine committed |
-| M4 | Initial public API and SDK client | Next |
+| M4 | Initial public HTTP API router | Router baseline implemented |
 | M5 | Additional language SDKs and provider adapters | Planned |
 | M6 | Additional research and retrieval subsystems | Planned |
 | M7 | Hardening, documentation, compatibility, and releases | Planned |
