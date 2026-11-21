@@ -119,7 +119,7 @@ impl BrowserRenderer {
         })?;
 
         let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
-        let (browser, mut handler) = timeout(operation_timeout, Browser::launch(browser_config))
+        let (mut browser, mut handler) = timeout(operation_timeout, Browser::launch(browser_config))
             .await
             .map_err(|_| {
                 browser_error(
