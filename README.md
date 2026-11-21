@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -78,6 +78,10 @@ The runtime now statically registers a VRTc-owned URL Frontier Engine. It provid
 ## Native HTTP Fetcher
 
 The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
+
+## Native Storage & Database Engine
+
+VRTc provides a namespaced key-value storage contract with bounded keys/values/scans, atomic batches, an in-memory default, and an optional local redb backend selected through `RuntimeConfig.storage_path`. The redb backend is experimental/beta upstream. Existing Delta, Evidence, Feedback, and Frontier state stores have not yet been migrated, so this does not make all runtime state durable. See [M16 Native Storage Specification](docs/specifications/m16-native-storage-engine.md).
 
 ## Native Evidence Provenance & Claim Verification
 

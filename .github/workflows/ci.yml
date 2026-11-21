@@ -44,6 +44,7 @@ jobs:
           test -s crates/vrtc-crawler/src/lib.rs
           test -s crates/vrtc-delta/src/lib.rs
           test -s crates/vrtc-evidence/src/lib.rs
+          test -s crates/vrtc-storage/src/lib.rs
           test -s crates/vrtc-runtime/src/lib.rs
           test -s crates/vrtc-api/src/lib.rs
           test -s crates/vrtc-provider-geekflare/src/lib.rs
@@ -59,6 +60,7 @@ jobs:
           test -s docs/specifications/m13-native-crawler-orchestration.md
           test -s docs/specifications/m14-native-delta-versioning.md
           test -s docs/specifications/m15-native-evidence-verification.md
+          test -s docs/specifications/m16-native-storage-engine.md
           test -s sdks/typescript/src/index.ts
           test -s sdks/python/src/vrtc_sdk/client.py
 

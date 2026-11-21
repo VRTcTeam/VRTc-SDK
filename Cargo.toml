@@ -13,6 +13,7 @@ members = [
     "crates/vrtc-crawler",
     "crates/vrtc-delta",
     "crates/vrtc-evidence",
+    "crates/vrtc-storage",
     "crates/vrtc-runtime",
     "crates/vrtc-api",
     "crates/vrtc-provider-geekflare",
