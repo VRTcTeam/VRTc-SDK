@@ -20,6 +20,7 @@ use vrtc_registry::Registry;
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 use vrtc_storage::{StorageConfig, StorageEngine};
+use vrtc_queue::{JobQueueEngine, QueueConfig};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
@@ -45,6 +46,8 @@ const EVIDENCE_ENGINE_ID: &str = "engine.vrtc.evidence";
 const EVIDENCE_CAPABILITY_ID: &str = "evidence.verify";
 const STORAGE_ENGINE_ID: &str = "engine.vrtc.storage";
 const STORAGE_CAPABILITY_ID: &str = "storage.kv";
+const QUEUE_ENGINE_ID: &str = "engine.vrtc.queue";
+const QUEUE_CAPABILITY_ID: &str = "queue.jobs";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -61,6 +64,7 @@ pub struct RuntimeConfig {
     pub evidence: EvidenceConfig,
     pub storage: StorageConfig,
     pub storage_path: Option<PathBuf>,
+    pub queue: QueueConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -77,6 +81,7 @@ pub struct VrtcRuntime {
     delta: Arc<DeltaEngine>,
     evidence: Arc<EvidenceEngine>,
     storage: Arc<StorageEngine>,
+    queue: Arc<JobQueueEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -97,6 +102,7 @@ impl VrtcRuntime {
             Some(path) => StorageEngine::open_redb(path, config.storage)?,
             None => StorageEngine::memory(config.storage)?,
         });
+        let queue = Arc::new(JobQueueEngine::new(config.queue, Some(Arc::clone(&storage)))?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -129,6 +135,8 @@ impl VrtcRuntime {
         registry.activate_engine(EVIDENCE_ENGINE_ID)?;
         registry.register_static_engine(storage_engine_descriptor())?;
         registry.activate_engine(STORAGE_ENGINE_ID)?;
+        registry.register_static_engine(queue_engine_descriptor())?;
+        registry.activate_engine(QUEUE_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -143,6 +151,7 @@ impl VrtcRuntime {
             delta,
             evidence,
             storage,
+            queue,
             registration_lock: Mutex::new(()),
         })
     }
@@ -299,6 +308,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn storage_engine(&self) -> Arc<StorageEngine> {
         Arc::clone(&self.storage)
+    }
+
+    /// Shared native job queue and lease lifecycle handle.
+    #[must_use]
+    pub fn queue_engine(&self) -> Arc<JobQueueEngine> {
+        Arc::clone(&self.queue)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -671,6 +686,38 @@ fn storage_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn queue_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: QUEUE_ENGINE_ID.to_owned(),
+        name: "VRTc Native Job Queue & Processing Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "queue".to_owned(),
+        capabilities: vec![Capability {
+            id: QUEUE_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "submit".to_owned(),
+                "lease".to_owned(),
+                "ack".to_owned(),
+                "retry".to_owned(),
+                "recover_expired".to_owned(),
+                "dead_letters".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("coordination".to_owned(), "single-runtime".to_owned()),
+                ("persistence".to_owned(), "optional-storage-engine".to_owned()),
+                ("delivery".to_owned(), "at-least-once".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -725,6 +772,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_queue_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(QUEUE_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "queue");
+        assert_eq!(engine.capabilities[0].id, QUEUE_CAPABILITY_ID);
     }
 
     #[test]
