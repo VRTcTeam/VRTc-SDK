@@ -319,7 +319,10 @@ fn index_engine_descriptor() -> EngineDescriptor {
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
-                ("storage".to_owned(), "in-memory-or-local-directory".to_owned()),
+                (
+                    "storage".to_owned(),
+                    "in-memory-or-local-directory".to_owned(),
+                ),
                 ("retrieval".to_owned(), "lexical-bm25".to_owned()),
             ]),
             availability: CapabilityAvailability::Available,
