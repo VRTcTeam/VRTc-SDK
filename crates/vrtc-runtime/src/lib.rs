@@ -8,6 +8,7 @@ use vrtc_core::{
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
 use vrtc_extract::{ExtractionConfig, ExtractionEngine};
+use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
@@ -27,6 +28,8 @@ const INDEX_ENGINE_ID: &str = "engine.vrtc.index";
 const INDEX_CAPABILITY_ID: &str = "index.documents";
 const RETRIEVAL_ENGINE_ID: &str = "engine.vrtc.retrieval";
 const RETRIEVAL_CAPABILITY_ID: &str = "retrieval.fuse";
+const FEEDBACK_ENGINE_ID: &str = "engine.vrtc.feedback";
+const FEEDBACK_CAPABILITY_ID: &str = "human.review";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -37,6 +40,7 @@ pub struct RuntimeConfig {
     pub extraction: ExtractionConfig,
     pub index: IndexConfig,
     pub retrieval: RetrievalConfig,
+    pub feedback: FeedbackConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -48,6 +52,7 @@ pub struct VrtcRuntime {
     extraction: Arc<ExtractionEngine>,
     index: Arc<IndexEngine>,
     retrieval: Arc<RetrievalEngine>,
+    feedback: Arc<FeedbackEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -61,6 +66,7 @@ impl VrtcRuntime {
         let extraction = Arc::new(ExtractionEngine::new(config.extraction)?);
         let index = Arc::new(IndexEngine::new(config.index)?);
         let retrieval = Arc::new(RetrievalEngine::new(Arc::clone(&index), config.retrieval)?);
+        let feedback = Arc::new(FeedbackEngine::new(config.feedback)?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
         registry.register_static_engine(frontier_engine_descriptor())?;
@@ -73,6 +79,8 @@ impl VrtcRuntime {
         registry.activate_engine(INDEX_ENGINE_ID)?;
         registry.register_static_engine(retrieval_engine_descriptor())?;
         registry.activate_engine(RETRIEVAL_ENGINE_ID)?;
+        registry.register_static_engine(feedback_engine_descriptor())?;
+        registry.activate_engine(FEEDBACK_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -82,6 +90,7 @@ impl VrtcRuntime {
             extraction,
             index,
             retrieval,
+            feedback,
             registration_lock: Mutex::new(()),
         })
     }
@@ -201,6 +210,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn retrieval_engine(&self) -> Arc<RetrievalEngine> {
         Arc::clone(&self.retrieval)
+    }
+
+    /// Shared native Human Feedback and Evaluation handle.
+    #[must_use]
+    pub fn feedback_engine(&self) -> Arc<FeedbackEngine> {
+        Arc::clone(&self.feedback)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -380,6 +395,37 @@ fn retrieval_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn feedback_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: FEEDBACK_ENGINE_ID.to_owned(),
+        name: "VRTc Human Feedback & Search Evaluation".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "human-feedback".to_owned(),
+        capabilities: vec![Capability {
+            id: FEEDBACK_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "create_review_task".to_owned(),
+                "list_review_tasks".to_owned(),
+                "submit_judgment".to_owned(),
+                "adjudicate".to_owned(),
+                "evaluate_ranking".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("storage".to_owned(), "in-memory-initial".to_owned()),
+                ("labels".to_owned(), "graded-0-to-3".to_owned()),
+                ("metrics".to_owned(), "precision-recall-mrr-ndcg".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -434,6 +480,19 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_feedback_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(FEEDBACK_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "human-feedback");
+        assert_eq!(engine.capabilities[0].id, FEEDBACK_CAPABILITY_ID);
+        assert!(engine.capabilities[0]
+            .operations
+            .iter()
+            .any(|operation| operation == "list_review_tasks"));
     }
 
     #[tokio::test]

@@ -15,6 +15,7 @@ vrtc-fetcher = { path = "../vrtc-fetcher" }
 vrtc-extract = { path = "../vrtc-extract" }
 vrtc-index = { path = "../vrtc-index" }
 vrtc-retrieval = { path = "../vrtc-retrieval" }
+vrtc-feedback = { path = "../vrtc-feedback" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
