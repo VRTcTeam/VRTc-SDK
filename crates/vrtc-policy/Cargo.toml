@@ -1,0 +1,14 @@
+[package]
+name = "vrtc-policy"
+version = "0.1.0"
+description = "Native URL, crawl-scope, and retrieval policy decision engine for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+url = "2"
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true

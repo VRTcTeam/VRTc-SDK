@@ -23,6 +23,7 @@ vrtc-storage = { path = "../vrtc-storage" }
 vrtc-queue = { path = "../vrtc-queue" }
 vrtc-research = { path = "../vrtc-research" }
 vrtc-observability = { path = "../vrtc-observability" }
+vrtc-policy = { path = "../vrtc-policy" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
