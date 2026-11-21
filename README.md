@@ -230,3 +230,13 @@ The Rust runtime includes a native DNS, TLS policy, and outbound route-planning 
 ## Fetcher & Network Policy Integration (M24)
 
 The runtime now shares one configured Network Engine with the HTTP Fetcher. Each request hop performs bounded DNS resolution, rejects non-public address sets, pins the selected validated address, and revalidates route policy after redirects. Proxy routes fail closed until the Fetcher can apply them without delegating destination DNS/IP policy to an untrusted proxy. See [M24 Fetcher & Network Integration Specification](docs/specifications/m24-fetcher-network-integration.md).
+
+
+## Technology research framework
+
+VRTc evaluates engines, providers, and supporting technologies through the seven-rule framework: implementation, adaptation, adoption, recreation, use, lawful system reverse engineering, and systematic benchmarking. The framework covers search, crawlers, spiders, scrapers, browser engines (Chromium/Blink, WebKit, Gecko), headless execution, extraction, and document-to-Markdown conversion.
+
+- [M25 Technology & Provider Research Framework](docs/specifications/m25-technology-provider-research-framework.md)
+- [Technology Evaluation Matrix](docs/research/technology-evaluation-matrix.md)
+
+External providers are optional integrations, not mandatory dependencies. Research and integration decisions must preserve policy enforcement, provenance, licensing review, security boundaries, and reproducible measurements.
