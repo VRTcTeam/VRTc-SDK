@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, and the first provider-agnostic Search Engine foundation are implemented. Initial Search Engine HTTP router is implemented; language clients are the next integration milestone.
+> Project status: Rust core contracts, hybrid registry, and the first provider-agnostic Search Engine foundation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -90,6 +90,10 @@ The shared Rust contracts include component descriptors, capabilities, structure
 
 Contracts should carry stable identifiers, schema versions, timestamps where relevant, structured status and error information, and source provenance.
 
+## Language SDK clients
+
+Initial client packages are available for [TypeScript](sdks/typescript/README.md) and [Python](sdks/python/README.md). Both target the same HTTP contract and expose search, provider discovery, and health operations. The remaining selected language ecosystem will be added incrementally, with each client following the canonical contracts.
+
 ## Protocol direction
 
 - **REST + OpenAPI** for the public HTTP API and generated client support.
@@ -140,7 +144,7 @@ This is a target architecture, not a statement that all subsystems are available
 | M2 | Rust core foundation and registry implementation | Initial implementation committed |
 | M3 | First Search Engine implementation | Initial provider-agnostic engine committed |
 | M4 | Initial public HTTP API router | Router baseline implemented |
-| M5 | Additional language SDKs and provider adapters | Planned |
+| M5 | Language SDK clients and provider adapters | Initial TypeScript and Python clients implemented |
 | M6 | Additional research and retrieval subsystems | Planned |
 | M7 | Hardening, documentation, compatibility, and releases | Planned |
 
