@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use vrtc_browser::{BrowserRenderConfig, BrowserRenderer};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -19,7 +20,6 @@ use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_observability::{ObservabilityConfig, ObservabilityEngine};
 use vrtc_policy::{PolicyConfig, PolicyEngine};
-use vrtc_browser::{BrowserRenderConfig, BrowserRenderer};
 use vrtc_queue::{JobQueueEngine, QueueConfig};
 use vrtc_registry::Registry;
 use vrtc_research::{ResearchConfig, ResearchPlanner};
@@ -920,7 +920,10 @@ fn browser_engine_descriptor() -> EngineDescriptor {
         kind: "browser-renderer".to_owned(),
         capabilities: vec![Capability {
             id: BROWSER_CAPABILITY_ID.to_owned(),
-            operations: vec!["render_html_snapshot".to_owned(), "extract_rendered_dom".to_owned()],
+            operations: vec![
+                "render_html_snapshot".to_owned(),
+                "extract_rendered_dom".to_owned(),
+            ],
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
