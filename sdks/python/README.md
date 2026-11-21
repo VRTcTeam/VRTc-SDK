@@ -5,7 +5,7 @@ Official Python client for an operator-hosted VRTc HTTP API. Python 3.10+; runti
 ## Install
 
 ```sh
-pip install vrtc-sdk
+python -m pip install ./sdks/python
 ```
 
 ## Usage
