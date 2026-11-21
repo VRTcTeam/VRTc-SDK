@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle, and initial native Research Planner & Orchestration Graph, and initial native Monitoring & Observability telemetry, and initial native Security & Retrieval Policy engine, and initial native WARC Web Archive engine, and initial native offline Browser Rendering Engine are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle, and initial native Research Planner & Orchestration Graph, and initial native Monitoring & Observability telemetry, and initial native Security & Retrieval Policy engine, and initial native WARC Web Archive engine, and initial native offline Browser Rendering Engine, and initial native DNS/TLS/route-planning infrastructure are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -220,3 +220,8 @@ Do not commit credentials or local environment files. Use repository or environm
 VRTc is under active development. APIs and implementation details may evolve through documented design decisions and versioned contracts.
 
 No provider credentials are required to build the core contracts or Search Engine. Provider integrations must be configured explicitly by the operator.
+
+
+## Native network infrastructure (M23)
+
+The Rust runtime includes a native DNS, TLS policy, and outbound route-planning engine. DNS resolution is timeout-bounded and can reject mixed public/private answer sets; TLS certificate validation is mandatory; proxy selection is explicit and host-rule based. The current proxy API produces a route plan only: the HTTP Fetcher does not yet consume proxy routes. See [M23 Network Infrastructure Specification](docs/specifications/m23-native-network-infrastructure.md) for the security boundary and deferred transport integration.
