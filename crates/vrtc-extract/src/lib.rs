@@ -133,6 +133,7 @@ impl ExtractionEngine {
             .and_then(|value| normalize_url(&value, base.as_ref()));
         let headings = extract_headings(candidate);
         let links = extract_links(candidate, base.as_ref(), self.config.max_links);
+        let markdown = if markdown.is_empty() { text.clone() } else { markdown };
         let confidence = estimate_confidence(&text, headings.len());
 
         Ok(ExtractedDocument {
@@ -207,8 +208,9 @@ fn candidate_score(element: ElementRef<'_>) -> i64 {
         })
         .unwrap_or_default();
 
+    let body_penalty = if element.value().name() == "body" { 800 } else { 0 };
     text_length + paragraphs * 180 + headings * 55 + positive * 260 - link_chars * 2
-        - negative * 650 - excluded_text * 2
+        - negative * 650 - excluded_text * 2 - body_penalty
 }
 
 fn extract_blocks(candidate: ElementRef<'_>) -> (String, String) {
