@@ -223,7 +223,7 @@ impl FeedbackEngine {
             return Err(feedback_error(
                 "DUPLICATE_REVIEWER_JUDGMENT",
                 "This reviewer has already judged this document in the task",
-                ErrorCategory::Conflict,
+                ErrorCategory::Validation,
             ));
         }
         let judgment = RelevanceJudgment {
