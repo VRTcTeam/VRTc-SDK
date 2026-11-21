@@ -640,16 +640,43 @@ mod tests {
     fn records_disagreement_adjudicates_and_evaluates_ranking() {
         let engine = FeedbackEngine::new(FeedbackConfig::default()).unwrap();
         let task = engine
-            .create_task("crawler scheduler", "rubric-v1", vec![candidate("a"), candidate("b")])
+            .create_task(
+                "crawler scheduler",
+                "rubric-v1",
+                vec![candidate("a"), candidate("b")],
+            )
             .unwrap();
-        engine.submit_judgment(&task.id, "a", "reviewer-1", 3, "rubric-v1", None).unwrap();
-        engine.submit_judgment(&task.id, "a", "reviewer-2", 1, "rubric-v1", None).unwrap();
-        engine.submit_judgment(&task.id, "b", "reviewer-1", 1, "rubric-v1", None).unwrap();
-        engine.submit_judgment(&task.id, "b", "reviewer-2", 1, "rubric-v1", None).unwrap();
-        assert_eq!(engine.snapshot(&task.id).unwrap().task.status, ReviewTaskStatus::NeedsAdjudication);
+        engine
+            .submit_judgment(&task.id, "a", "reviewer-1", 3, "rubric-v1", None)
+            .unwrap();
+        engine
+            .submit_judgment(&task.id, "a", "reviewer-2", 1, "rubric-v1", None)
+            .unwrap();
+        engine
+            .submit_judgment(&task.id, "b", "reviewer-1", 1, "rubric-v1", None)
+            .unwrap();
+        engine
+            .submit_judgment(&task.id, "b", "reviewer-2", 1, "rubric-v1", None)
+            .unwrap();
+        assert_eq!(
+            engine.snapshot(&task.id).unwrap().task.status,
+            ReviewTaskStatus::NeedsAdjudication
+        );
 
-        engine.adjudicate(&task.id, "a", "adjudicator-1", 2, "rubric-v1", Some("Evidence supports relevance".to_owned())).unwrap();
-        assert_eq!(engine.snapshot(&task.id).unwrap().task.status, ReviewTaskStatus::Completed);
+        engine
+            .adjudicate(
+                &task.id,
+                "a",
+                "adjudicator-1",
+                2,
+                "rubric-v1",
+                Some("Evidence supports relevance".to_owned()),
+            )
+            .unwrap();
+        assert_eq!(
+            engine.snapshot(&task.id).unwrap().task.status,
+            ReviewTaskStatus::Completed
+        );
 
         let metrics = engine
             .evaluate_ranking(&task.id, &["b".to_owned(), "a".to_owned()], 2)
@@ -692,8 +719,14 @@ mod tests {
         let task = engine
             .create_task("search query", "rubric-v1", vec![candidate("doc")])
             .unwrap();
-        engine.submit_judgment(&task.id, "doc", "reviewer", 2, "rubric-v1", None).unwrap();
-        assert!(engine.submit_judgment(&task.id, "doc", "reviewer", 3, "rubric-v1", None).is_err());
-        assert!(engine.submit_judgment(&task.id, "doc", "reviewer-2", 4, "rubric-v1", None).is_err());
+        engine
+            .submit_judgment(&task.id, "doc", "reviewer", 2, "rubric-v1", None)
+            .unwrap();
+        assert!(engine
+            .submit_judgment(&task.id, "doc", "reviewer", 3, "rubric-v1", None)
+            .is_err());
+        assert!(engine
+            .submit_judgment(&task.id, "doc", "reviewer-2", 4, "rubric-v1", None)
+            .is_err());
     }
 }
