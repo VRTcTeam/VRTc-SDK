@@ -1,0 +1,17 @@
+[package]
+name = "vrtc-browser"
+version = "0.1.0"
+description = "Native isolated browser rendering engine for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+chromiumoxide = { version = "0.9.1", default-features = false }
+futures = "0.3"
+tokio.workspace = true
+vrtc-core = { path = "../vrtc-core" }
+vrtc-policy = { path = "../vrtc-policy" }
+
+[lints]
+workspace = true
