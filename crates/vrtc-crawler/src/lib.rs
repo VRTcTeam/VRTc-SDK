@@ -11,6 +11,7 @@ use std::time::{Duration, Instant, SystemTime};
 use robotstxt::DefaultMatcher;
 use url::Url;
 use vrtc_core::{ErrorCategory, VrtCError};
+use vrtc_delta::{ChangeKind, DeltaEngine};
 use vrtc_extract::ExtractionEngine;
 use vrtc_fetcher::FetchEngine;
 use vrtc_frontier::{CrawlRequest, EnqueueOutcome, FrontierEngine, FrontierStats, RetryOutcome};
@@ -115,6 +116,10 @@ pub struct CrawlRunReport {
     pub duplicate_links: usize,
     pub out_of_scope_links: usize,
     pub links_rejected: usize,
+    pub documents_created: usize,
+    pub documents_modified: usize,
+    pub documents_unchanged: usize,
+    pub delta_errors: usize,
     pub frontier: Option<FrontierStats>,
 }
 
@@ -124,6 +129,7 @@ pub struct CrawlerEngine {
     fetcher: Arc<FetchEngine>,
     extraction: Arc<ExtractionEngine>,
     index: Arc<IndexEngine>,
+    delta: Arc<DeltaEngine>,
     robots: Mutex<RobotsCache>,
 }
 
@@ -134,6 +140,7 @@ impl CrawlerEngine {
         fetcher: Arc<FetchEngine>,
         extraction: Arc<ExtractionEngine>,
         index: Arc<IndexEngine>,
+        delta: Arc<DeltaEngine>,
     ) -> Result<Self, VrtCError> {
         if config.max_pages_per_run == 0
             || config.max_seeds_per_run == 0
@@ -160,6 +167,7 @@ impl CrawlerEngine {
             fetcher,
             extraction,
             index,
+            delta,
             robots: Mutex::new(RobotsCache::default()),
         })
     }
@@ -283,12 +291,30 @@ impl CrawlerEngine {
                 source: "vrtc-native-crawler".to_owned(),
             };
 
-            if self.index.index_batch(&[document]).is_err() {
+            if self
+                .index
+                .index_batch(std::slice::from_ref(&document))
+                .is_err()
+            {
                 self.retry_lease(&lease.id, Duration::from_secs(2), &mut report)?;
                 continue;
             }
 
             report.documents_indexed += 1;
+            match self.delta.record_snapshot(
+                &document.url,
+                &document.title,
+                &document.description,
+                &document.body,
+                SystemTime::now(),
+            ) {
+                Ok(record) => match record.kind {
+                    ChangeKind::Created => report.documents_created += 1,
+                    ChangeKind::Modified => report.documents_modified += 1,
+                    ChangeKind::Unchanged => report.documents_unchanged += 1,
+                },
+                Err(_) => report.delta_errors += 1,
+            }
             let source_host = origin_of(&response.final_url);
             for link in extracted.links.iter().take(self.config.max_links_per_page) {
                 if lease.request.depth >= self.config.max_depth {

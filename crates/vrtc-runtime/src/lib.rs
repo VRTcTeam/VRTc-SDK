@@ -8,6 +8,7 @@ use vrtc_core::{
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
 };
 use vrtc_crawler::{CrawlerConfig, CrawlerEngine};
+use vrtc_delta::{DeltaConfig, DeltaEngine};
 use vrtc_extract::{ExtractionConfig, ExtractionEngine};
 use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
@@ -35,6 +36,8 @@ const FEEDBACK_ENGINE_ID: &str = "engine.vrtc.feedback";
 const FEEDBACK_CAPABILITY_ID: &str = "human.review";
 const CRAWLER_ENGINE_ID: &str = "engine.vrtc.crawler";
 const CRAWLER_CAPABILITY_ID: &str = "crawl.execute";
+const DELTA_ENGINE_ID: &str = "engine.vrtc.delta";
+const DELTA_CAPABILITY_ID: &str = "content.delta";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -47,6 +50,7 @@ pub struct RuntimeConfig {
     pub retrieval: RetrievalConfig,
     pub feedback: FeedbackConfig,
     pub crawler: CrawlerConfig,
+    pub delta: DeltaConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -60,6 +64,7 @@ pub struct VrtcRuntime {
     retrieval: Arc<RetrievalEngine>,
     feedback: Arc<FeedbackEngine>,
     crawler: Arc<CrawlerEngine>,
+    delta: Arc<DeltaEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -74,12 +79,14 @@ impl VrtcRuntime {
         let index = Arc::new(IndexEngine::new(config.index)?);
         let retrieval = Arc::new(RetrievalEngine::new(Arc::clone(&index), config.retrieval)?);
         let feedback = Arc::new(FeedbackEngine::new(config.feedback)?);
+        let delta = Arc::new(DeltaEngine::new(config.delta)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
             Arc::clone(&fetcher),
             Arc::clone(&extraction),
             Arc::clone(&index),
+            Arc::clone(&delta),
         )?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
@@ -99,6 +106,8 @@ impl VrtcRuntime {
         registry.activate_engine(FEEDBACK_ENGINE_ID)?;
         registry.register_static_engine(crawler_engine_descriptor())?;
         registry.activate_engine(CRAWLER_ENGINE_ID)?;
+        registry.register_static_engine(delta_engine_descriptor())?;
+        registry.activate_engine(DELTA_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -110,6 +119,7 @@ impl VrtcRuntime {
             retrieval,
             feedback,
             crawler,
+            delta,
             registration_lock: Mutex::new(()),
         })
     }
@@ -248,6 +258,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn crawler_engine(&self) -> Arc<CrawlerEngine> {
         Arc::clone(&self.crawler)
+    }
+
+    /// Shared native content Delta and version-history handle.
+    #[must_use]
+    pub fn delta_engine(&self) -> Arc<DeltaEngine> {
+        Arc::clone(&self.delta)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -524,6 +540,37 @@ fn crawler_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn delta_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: DELTA_ENGINE_ID.to_owned(),
+        name: "VRTc Native Delta & Versioning Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "delta".to_owned(),
+        capabilities: vec![Capability {
+            id: DELTA_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "record_snapshot".to_owned(),
+                "detect_change".to_owned(),
+                "compare_versions".to_owned(),
+                "read_history".to_owned(),
+                "report_stats".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("fingerprint".to_owned(), "sha-256".to_owned()),
+                ("diff".to_owned(), "bounded-line-diff".to_owned()),
+                ("storage".to_owned(), "bounded-in-memory-history".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -578,6 +625,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_delta_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(DELTA_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "delta");
+        assert_eq!(engine.capabilities[0].id, DELTA_CAPABILITY_ID);
     }
 
     #[test]
