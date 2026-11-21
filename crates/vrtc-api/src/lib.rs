@@ -13,6 +13,7 @@ use axum::{Json, Router};
 use serde::Serialize;
 
 use vrtc_core::{ErrorCategory, SearchRequest, SearchResponse, VrtCError};
+use vrtc_runtime::VrtcRuntime;
 use vrtc_search::SearchEngine;
 
 #[derive(Clone)]
@@ -27,6 +28,11 @@ pub fn router(search: Arc<SearchEngine>) -> Router {
         .route("/v1/providers", get(providers_endpoint))
         .route("/v1/health", get(health_endpoint))
         .with_state(ApiState { search })
+}
+
+/// Build the HTTP router directly from the unified VRTc runtime.
+pub fn router_with_runtime(runtime: Arc<VrtcRuntime>) -> Router {
+    router(runtime.search_engine())
 }
 
 /// Search request endpoint. Provider failures are returned inside a successful
