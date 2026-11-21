@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, and the first provider-agnostic Search Engine foundation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, and the first provider-agnostic Search Engine foundation are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -46,7 +46,7 @@ VRTc uses a **hybrid registration model**:
 
 Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.
 
-The M1 baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md).
+The M1 baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md). The runtime integration is described in [Runtime & Registry Integration](docs/specifications/m2-runtime-integration.md).
 
 ## Initial subsystem: Search Engine
 
@@ -68,7 +68,7 @@ External search services are optional adapters. The core SDK does not require a 
 
 ## Initial HTTP API
 
-The `vrtc-api` crate exposes an embeddable Axum router with `POST /v1/search`, `GET /v1/providers`, and `GET /v1/health`. The host application remains responsible for listener lifecycle, TLS, authentication, authorization, and rate limiting. See [M4 HTTP API Contract](docs/specifications/m4-http-api.md).
+The `vrtc-api` crate exposes an embeddable Axum router with `POST /v1/search`, `GET /v1/providers`, and `GET /v1/health`. `router_with_runtime` accepts the unified `VrtcRuntime`, so the HTTP surface uses the same registry-backed Search Engine instance as embedded callers. The host application remains responsible for listener lifecycle, TLS, authentication, authorization, and rate limiting. See [M4 HTTP API Contract](docs/specifications/m4-http-api.md).
 
 ## Core contracts
 
@@ -141,8 +141,8 @@ This is a target architecture, not a statement that all subsystems are available
 |---|---|---|
 | M0 | Architecture and project specification | Baseline established |
 | M1 | Core contracts and registry specification | Specification baseline drafted |
-| M2 | Rust core foundation and registry implementation | Initial implementation committed |
-| M3 | First Search Engine implementation | Initial provider-agnostic engine committed |
+| M2 | Rust core foundation, registry, and runtime integration | Initial implementation committed |
+| M3 | First Search Engine implementation | Initial provider-agnostic engine committed and runtime-integrated |
 | M4 | Initial public HTTP API router | Router baseline implemented |
 | M5 | Language SDK clients and provider adapters | Initial TypeScript and Python clients implemented |
 | M6 | Additional research and retrieval subsystems | Planned |
