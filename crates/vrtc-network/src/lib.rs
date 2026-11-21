@@ -188,6 +188,28 @@ impl NetworkEngine {
         })
     }
 
+    /// Resolve only publicly routable addresses, regardless of relaxed general DNS settings.
+    /// The HTTP Fetcher uses this stricter entry point to preserve its SSRF boundary.
+    pub async fn resolve_public(
+        &self,
+        hostname: &str,
+        port: u16,
+    ) -> Result<DnsResolution, VrtCError> {
+        let resolution = self.resolve(hostname, port).await?;
+        if resolution
+            .addresses
+            .iter()
+            .any(|address| !is_public_ip(address.ip()))
+        {
+            return Err(network_error(
+                "DNS_NON_PUBLIC_ADDRESS_BLOCKED",
+                "The HTTP Fetcher requires every resolved address to be publicly routable",
+                ErrorCategory::PolicyDenied,
+            ));
+        }
+        Ok(resolution)
+    }
+
     /// Select a configured proxy only for explicitly matched host rules.
     /// This is a routing decision; the transport must apply it explicitly.
     pub fn plan_route(&self, raw_url: &str) -> Result<NetworkRoute, VrtCError> {
@@ -361,6 +383,21 @@ mod tests {
             ..NetworkConfig::default()
         });
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn public_address_policy_rejects_private_and_reserved_ranges() {
+        for address in [
+            "127.0.0.1",
+            "10.0.0.1",
+            "192.168.1.1",
+            "169.254.1.1",
+            "100.64.0.1",
+            "198.18.0.1",
+        ] {
+            assert!(!is_public_ip(address.parse().unwrap()), "{address}");
+        }
+        assert!(is_public_ip("8.8.8.8".parse().unwrap()));
     }
 
     #[test]

@@ -225,3 +225,8 @@ No provider credentials are required to build the core contracts or Search Engin
 ## Native network infrastructure (M23)
 
 The Rust runtime includes a native DNS, TLS policy, and outbound route-planning engine. DNS resolution is timeout-bounded and can reject mixed public/private answer sets; TLS certificate validation is mandatory; proxy selection is explicit and host-rule based. The current proxy API produces a route plan only: the HTTP Fetcher does not yet consume proxy routes. See [M23 Network Infrastructure Specification](docs/specifications/m23-native-network-infrastructure.md) for the security boundary and deferred transport integration.
+
+
+## Fetcher & Network Policy Integration (M24)
+
+The runtime now shares one configured Network Engine with the HTTP Fetcher. Each request hop performs bounded DNS resolution, rejects non-public address sets, pins the selected validated address, and revalidates route policy after redirects. Proxy routes fail closed until the Fetcher can apply them without delegating destination DNS/IP policy to an untrusted proxy. See [M24 Fetcher & Network Integration Specification](docs/specifications/m24-fetcher-network-integration.md).

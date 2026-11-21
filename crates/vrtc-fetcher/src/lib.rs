@@ -6,7 +6,8 @@
 //! controls; those concerns belong to separate VRTc engines.
 
 use std::collections::BTreeMap;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use reqwest::header::{ACCEPT, CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
@@ -14,6 +15,7 @@ use reqwest::redirect::Policy;
 use reqwest::{Client, StatusCode};
 use url::Url;
 use vrtc_core::{ErrorCategory, VrtCError};
+use vrtc_network::{NetworkConfig, NetworkEngine, RouteMode};
 
 #[derive(Debug, Clone)]
 pub struct FetchConfig {
@@ -48,10 +50,22 @@ pub struct FetchResponse {
 
 pub struct FetchEngine {
     config: FetchConfig,
+    network: Arc<NetworkEngine>,
 }
 
 impl FetchEngine {
     pub fn new(config: FetchConfig) -> Result<Self, VrtCError> {
+        Self::with_network(
+            config,
+            Arc::new(NetworkEngine::new(NetworkConfig::default())?),
+        )
+    }
+
+    /// Create a Fetcher that shares the runtime's configured network policy.
+    pub fn with_network(
+        config: FetchConfig,
+        network: Arc<NetworkEngine>,
+    ) -> Result<Self, VrtCError> {
         if config.timeout.is_zero()
             || config.max_body_bytes == 0
             || config.max_redirects > 10
@@ -64,7 +78,40 @@ impl FetchEngine {
                 false,
             ));
         }
-        Ok(Self { config })
+        Ok(Self { config, network })
+    }
+
+    async fn resolve_public_endpoint(&self, url: &Url) -> Result<(String, SocketAddr), VrtCError> {
+        let host = url
+            .host_str()
+            .ok_or_else(|| {
+                fetch_error(
+                    "FETCH_HOST_MISSING",
+                    "Fetch URL does not contain a hostname",
+                    ErrorCategory::Validation,
+                    false,
+                )
+            })?
+            .to_ascii_lowercase();
+        let port = url.port_or_known_default().ok_or_else(|| {
+            fetch_error(
+                "FETCH_PORT_MISSING",
+                "Fetch URL does not contain a valid port",
+                ErrorCategory::Validation,
+                false,
+            )
+        })?;
+
+        let resolution = self.network.resolve_public(&host, port).await?;
+        let address = resolution.addresses.into_iter().next().ok_or_else(|| {
+            fetch_error(
+                "FETCH_DNS_EMPTY",
+                "The network engine returned no validated addresses",
+                ErrorCategory::PolicyDenied,
+                false,
+            )
+        })?;
+        Ok((host, address))
     }
 
     /// Fetch one public HTTP(S) resource with bounded redirects and body size.
@@ -75,7 +122,16 @@ impl FetchEngine {
         let mut redirect_chain = Vec::new();
 
         for hop in 0..=self.config.max_redirects {
-            let (host, address) = resolve_public_endpoint(&current).await?;
+            let route = self.network.plan_route(current.as_str())?;
+            if !matches!(route.mode, RouteMode::Direct) {
+                return Err(fetch_error(
+                    "PROXY_TRANSPORT_NOT_AVAILABLE",
+                    "The selected proxy route cannot be applied safely by this Fetcher transport",
+                    ErrorCategory::PolicyDenied,
+                    false,
+                ));
+            }
+            let (host, address) = self.resolve_public_endpoint(&current).await?;
             let client = Client::builder()
                 .timeout(self.config.timeout)
                 .redirect(Policy::none())
@@ -252,78 +308,6 @@ fn validate_url(raw_url: &str) -> Result<Url, VrtCError> {
     Ok(url)
 }
 
-async fn resolve_public_endpoint(url: &Url) -> Result<(String, SocketAddr), VrtCError> {
-    let host = url
-        .host_str()
-        .ok_or_else(|| {
-            fetch_error(
-                "FETCH_HOST_MISSING",
-                "Fetch URL does not contain a hostname",
-                ErrorCategory::Validation,
-                false,
-            )
-        })?
-        .to_ascii_lowercase();
-    let port = url.port_or_known_default().ok_or_else(|| {
-        fetch_error(
-            "FETCH_PORT_MISSING",
-            "Fetch URL does not contain a valid port",
-            ErrorCategory::Validation,
-            false,
-        )
-    })?;
-
-    let addresses = tokio::net::lookup_host((host.as_str(), port))
-        .await
-        .map_err(|_| {
-            fetch_error(
-                "FETCH_DNS_FAILED",
-                "The fetch hostname could not be resolved",
-                ErrorCategory::Internal,
-                true,
-            )
-        })?
-        .collect::<Vec<_>>();
-    if addresses.is_empty() || addresses.iter().any(|address| !is_public_ip(address.ip())) {
-        return Err(fetch_error(
-            "NON_PUBLIC_ADDRESS_BLOCKED",
-            "The hostname resolves to an address that is not permitted for public fetching",
-            ErrorCategory::PolicyDenied,
-            false,
-        ));
-    }
-    Ok((host, addresses[0]))
-}
-
-fn is_public_ip(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V4(address) => {
-            let octets = address.octets();
-            !(address.is_private()
-                || address.is_loopback()
-                || address.is_link_local()
-                || address.is_broadcast()
-                || address.is_unspecified()
-                || address.is_multicast()
-                || address.is_documentation()
-                || octets[0] == 0
-                || octets[0] >= 240
-                || (octets[0] == 100 && (octets[1] & 0xc0) == 64)
-                || (octets[0] == 192 && octets[1] == 0)
-                || (octets[0] == 198 && matches!(octets[1], 18 | 19)))
-        }
-        IpAddr::V6(address) => {
-            let segments = address.segments();
-            let global_unicast = segments[0] & 0xe000 == 0x2000;
-            global_unicast
-                && !address.is_loopback()
-                && !address.is_unspecified()
-                && !address.is_multicast()
-                && !(segments[0] == 0x2001 && segments[1] == 0x0db8)
-        }
-    }
-}
-
 fn is_redirect(status: StatusCode) -> bool {
     matches!(
         status,
@@ -374,17 +358,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_non_public_ip_ranges() {
-        for address in [
-            "127.0.0.1",
-            "10.0.0.1",
-            "192.168.1.1",
-            "169.254.1.1",
-            "100.64.0.1",
-            "198.18.0.1",
-        ] {
-            assert!(!is_public_ip(address.parse().unwrap()), "{address}");
-        }
-        assert!(is_public_ip("8.8.8.8".parse().unwrap()));
+    fn fetcher_accepts_the_runtime_network_engine() {
+        let network = Arc::new(NetworkEngine::new(NetworkConfig::default()).unwrap());
+        assert!(FetchEngine::with_network(FetchConfig::default(), network).is_ok());
     }
 }

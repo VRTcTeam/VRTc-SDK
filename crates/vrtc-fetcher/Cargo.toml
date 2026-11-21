@@ -10,6 +10,7 @@ reqwest.workspace = true
 tokio.workspace = true
 url = "2"
 vrtc-core = { path = "../vrtc-core" }
+vrtc-network = { path = "../vrtc-network" }
 
 [lints]
 workspace = true
