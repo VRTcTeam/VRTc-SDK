@@ -406,6 +406,7 @@ fn feedback_engine_descriptor() -> EngineDescriptor {
             id: FEEDBACK_CAPABILITY_ID.to_owned(),
             operations: vec![
                 "create_review_task".to_owned(),
+                "list_review_tasks".to_owned(),
                 "submit_judgment".to_owned(),
                 "adjudicate".to_owned(),
                 "evaluate_ranking".to_owned(),
@@ -479,6 +480,19 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_feedback_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(FEEDBACK_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "human-feedback");
+        assert_eq!(engine.capabilities[0].id, FEEDBACK_CAPABILITY_ID);
+        assert!(engine.capabilities[0]
+            .operations
+            .iter()
+            .any(|operation| operation == "list_review_tasks"));
     }
 
     #[tokio::test]
