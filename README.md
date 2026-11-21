@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, and embedded BM25 Document Index are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, and native hybrid Retrieval & Reranking are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
