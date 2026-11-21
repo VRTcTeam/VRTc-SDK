@@ -180,6 +180,31 @@ impl FeedbackEngine {
         Ok(task)
     }
 
+    /// List a bounded page of review tasks, optionally filtered by lifecycle status.
+    ///
+    /// The returned tasks are snapshots; use `snapshot` to inspect judgments.
+    pub fn list_tasks(
+        &self,
+        status: Option<ReviewTaskStatus>,
+        limit: usize,
+    ) -> Result<Vec<ReviewTask>, VrtCError> {
+        if limit == 0 || limit > self.config.max_tasks {
+            return Err(feedback_error(
+                "INVALID_REVIEW_TASK_LIMIT",
+                "Review task page size is outside the configured range",
+                ErrorCategory::Validation,
+            ));
+        }
+        let state = self.lock_state()?;
+        Ok(state
+            .tasks
+            .values()
+            .filter(|task| status.is_none_or(|expected| task.status == expected))
+            .take(limit)
+            .cloned()
+            .collect())
+    }
+
     /// Add one reviewer judgment. A reviewer cannot silently overwrite their own label.
     pub fn submit_judgment(
         &self,
