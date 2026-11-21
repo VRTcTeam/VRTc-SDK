@@ -371,10 +371,10 @@ impl FeedbackEngine {
     pub fn snapshot(&self, task_id: &str) -> Result<ReviewTaskSnapshot, VrtCError> {
         let state = self.lock_state()?;
         let task = state
-            .tasks
-            .get(task_id)
-            .cloned()
-            .ok_or_else(|| task_not_found(task_id))?;
+        .tasks
+        .get(task_id)
+        .cloned()
+        .ok_or_else(|| task_not_found(task_id))?;
         let judgments = state.judgments.get(task_id).cloned().unwrap_or_default();
         Ok(ReviewTaskSnapshot { task, judgments })
     }
