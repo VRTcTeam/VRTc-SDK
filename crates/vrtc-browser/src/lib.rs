@@ -79,7 +79,11 @@ impl BrowserRenderer {
             ));
         }
         let render_slots = Arc::new(Semaphore::new(config.max_concurrent_renders));
-        Ok(Self { config, policy, render_slots })
+        Ok(Self {
+            config,
+            policy,
+            render_slots,
+        })
     }
 
     pub async fn render(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
@@ -568,7 +572,10 @@ mod engine_abstraction_tests {
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
         )
         .unwrap();
-        let permit = Arc::clone(&renderer.render_slots).acquire_owned().await.unwrap();
+        let permit = Arc::clone(&renderer.render_slots)
+            .acquire_owned()
+            .await
+            .unwrap();
         let error = renderer
             .render(BrowserRenderRequest {
                 source_url: "file:///etc/passwd".to_owned(),
