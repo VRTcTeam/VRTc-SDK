@@ -396,8 +396,7 @@ impl CrawlerEngine {
 
 fn origin_of(raw_url: &str) -> String {
     Url::parse(raw_url)
-        .ok()
-        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+        .map(|url| url.origin().ascii_serialization())
         .unwrap_or_default()
 }
 
@@ -429,6 +428,31 @@ mod tests {
             "VRTc-Fetcher",
             "https://example.org/private/public/page"
         ));
+    }
+
+    #[test]
+    fn same_origin_scope_distinguishes_scheme_and_port() {
+        assert_eq!(
+            origin_of("https://example.org:8443/page"),
+            origin_of("https://example.org:8443/other")
+        );
+        assert_ne!(
+            origin_of("https://example.org/page"),
+            origin_of("http://example.org/page")
+        );
+        assert_ne!(
+            origin_of("https://example.org:8443/page"),
+            origin_of("https://example.org:9443/page")
+        );
+    }
+
+    #[test]
+    fn robots_policy_allows_unavailable_not_found_responses() {
+        let allow = CachedRobots::Decision {
+            value: RobotsDecision::AllowAll,
+            expires_at: Instant::now() + Duration::from_secs(60),
+        };
+        assert!(allow.permits("VRTc-Fetcher", "https://example.org/page"));
     }
 
     #[test]
