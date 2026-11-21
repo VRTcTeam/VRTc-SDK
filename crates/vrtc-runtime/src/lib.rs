@@ -11,8 +11,8 @@ use vrtc_extract::{ExtractionConfig, ExtractionEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
-use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_registry::Registry;
+use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
@@ -357,13 +357,20 @@ fn retrieval_engine_descriptor() -> EngineDescriptor {
         kind: "retrieval".to_owned(),
         capabilities: vec![Capability {
             id: RETRIEVAL_CAPABILITY_ID.to_owned(),
-            operations: vec!["retrieve".to_owned(), "fuse".to_owned(), "rerank".to_owned()],
+            operations: vec![
+                "retrieve".to_owned(),
+                "fuse".to_owned(),
+                "rerank".to_owned(),
+            ],
             input_contract_version: "1".to_owned(),
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
                 ("fusion".to_owned(), "weighted-rrf".to_owned()),
                 ("lexical_backend".to_owned(), "vrtc-index".to_owned()),
-                ("semantic_backend".to_owned(), "optional-candidate-input".to_owned()),
+                (
+                    "semantic_backend".to_owned(),
+                    "optional-candidate-input".to_owned(),
+                ),
             ]),
             availability: CapabilityAvailability::Available,
         }],
