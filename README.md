@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, and the native URL Frontier & Scheduler are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine foundation, native URL Frontier & Scheduler, and an initial policy-constrained HTTP Fetcher are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -70,6 +70,10 @@ External search services are optional adapters. The core SDK does not require a 
 ## Native URL Frontier & Scheduler
 
 The runtime now statically registers a VRTc-owned URL Frontier Engine. It provides URL canonicalization and deduplication, bounded pending/in-flight queues, priority scheduling, maximum crawl depth, per-host politeness delays, lease expiry and recovery, retry budgets, and terminal completion/failure tracking. The frontier does not fetch pages; HTTP fetching, browser rendering, and parsing remain separate engine responsibilities. See [Native Engine Landscape Research](docs/research/native-engine-landscape.md).
+
+## Native HTTP Fetcher
+
+The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
 
 ## Initial HTTP API
 
