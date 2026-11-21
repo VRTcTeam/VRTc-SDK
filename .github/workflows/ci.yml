@@ -70,7 +70,7 @@ jobs:
           test -s docs/specifications/m18-native-research-planner.md
           test -s docs/specifications/m19-native-observability.md
           test -s docs/specifications/m20-native-security-policy.md
-          test -s docs/specifications/m21-native-web-archive.md
+          test -s docs/specifications/m22-native-web-archive.md
           test -s sdks/typescript/src/index.ts
           test -s sdks/python/src/vrtc_sdk/client.py
 
