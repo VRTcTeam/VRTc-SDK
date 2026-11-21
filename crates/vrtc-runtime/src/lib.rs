@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
@@ -103,6 +104,12 @@ impl VrtcRuntime {
             None => StorageEngine::memory(config.storage)?,
         });
         let queue = Arc::new(JobQueueEngine::new(config.queue, Some(Arc::clone(&storage)))?);
+        let now_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+            .min(u64::MAX as u128) as u64;
+        queue.recover_expired(now_ms)?;
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
