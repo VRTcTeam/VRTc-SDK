@@ -333,6 +333,10 @@ fn normalize_result(value: &Value, fallback_position: usize) -> Option<SearchRes
         metadata.insert("content".to_owned(), content.to_owned());
     }
 
+    if let Some(date) = value.get("date").and_then(Value::as_str) {
+        metadata.insert("date".to_owned(), date.to_owned());
+    }
+
     Some(SearchResult {
         title: title.to_owned(),
         url: url.to_owned(),
@@ -342,7 +346,7 @@ fn normalize_result(value: &Value, fallback_position: usize) -> Option<SearchRes
             .map(str::to_owned),
         score: Some(1.0 / position as f64),
         provider_id: PROVIDER_ID.to_owned(),
-        published_at: value.get("date").and_then(Value::as_str).map(str::to_owned),
+        published_at: None,
         language: None,
         metadata,
     })
@@ -473,7 +477,11 @@ mod tests {
         assert_eq!(result.url, "https://example.org/docs");
         assert_eq!(result.provider_id, PROVIDER_ID);
         assert_eq!(result.score, Some(0.5));
-        assert_eq!(result.published_at.as_deref(), Some("2026-11-20"));
+        assert_eq!(result.published_at, None);
+        assert_eq!(
+            result.metadata.get("date").map(String::as_str),
+            Some("2026-11-20")
+        );
         assert_eq!(
             result.metadata.get("position").map(String::as_str),
             Some("2")

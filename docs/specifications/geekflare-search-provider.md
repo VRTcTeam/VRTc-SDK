@@ -36,7 +36,7 @@ The standard Geekflare response's `data` array is mapped to VRTc SearchResult:
 
 - `title` and `url` are required;
 - `snippet` becomes the VRTc snippet;
-- `date` becomes the optional publication date;
+- `date` is retained as raw metadata; it is not promoted to VRTc's RFC 3339 publication timestamp because Geekflare may return date-only values;
 - `position` is retained as metadata and converted into a monotonic rank score (`1 / position`);
 - scraped `content`, when returned, is retained in metadata.
 
