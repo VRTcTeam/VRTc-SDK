@@ -1,0 +1,15 @@
+[package]
+name = "vrtc-network"
+version = "0.1.0"
+description = "Native DNS resolution cache and outbound TLS policy infrastructure for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+reqwest.workspace = true
+tokio.workspace = true
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
