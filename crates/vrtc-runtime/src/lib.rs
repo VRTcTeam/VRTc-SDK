@@ -1,6 +1,7 @@
 //! VRTc runtime façade joining component registration to executable engines.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use vrtc_core::{
@@ -18,6 +19,7 @@ use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_registry::Registry;
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
+use vrtc_storage::{StorageConfig, StorageEngine};
 
 const SEARCH_ENGINE_ID: &str = "engine.vrtc.search";
 const SEARCH_CAPABILITY_ID: &str = "search.query";
@@ -41,6 +43,8 @@ const DELTA_ENGINE_ID: &str = "engine.vrtc.delta";
 const DELTA_CAPABILITY_ID: &str = "content.delta";
 const EVIDENCE_ENGINE_ID: &str = "engine.vrtc.evidence";
 const EVIDENCE_CAPABILITY_ID: &str = "evidence.verify";
+const STORAGE_ENGINE_ID: &str = "engine.vrtc.storage";
+const STORAGE_CAPABILITY_ID: &str = "storage.kv";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -55,6 +59,8 @@ pub struct RuntimeConfig {
     pub crawler: CrawlerConfig,
     pub delta: DeltaConfig,
     pub evidence: EvidenceConfig,
+    pub storage: StorageConfig,
+    pub storage_path: Option<PathBuf>,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -70,6 +76,7 @@ pub struct VrtcRuntime {
     crawler: Arc<CrawlerEngine>,
     delta: Arc<DeltaEngine>,
     evidence: Arc<EvidenceEngine>,
+    storage: Arc<StorageEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -86,6 +93,10 @@ impl VrtcRuntime {
         let feedback = Arc::new(FeedbackEngine::new(config.feedback)?);
         let delta = Arc::new(DeltaEngine::new(config.delta)?);
         let evidence = Arc::new(EvidenceEngine::new(config.evidence)?);
+        let storage = Arc::new(match config.storage_path.as_deref() {
+            Some(path) => StorageEngine::open_redb(path, config.storage)?,
+            None => StorageEngine::memory(config.storage)?,
+        });
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -116,6 +127,8 @@ impl VrtcRuntime {
         registry.activate_engine(DELTA_ENGINE_ID)?;
         registry.register_static_engine(evidence_engine_descriptor())?;
         registry.activate_engine(EVIDENCE_ENGINE_ID)?;
+        registry.register_static_engine(storage_engine_descriptor())?;
+        registry.activate_engine(STORAGE_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -129,6 +142,7 @@ impl VrtcRuntime {
             crawler,
             delta,
             evidence,
+            storage,
             registration_lock: Mutex::new(()),
         })
     }
@@ -279,6 +293,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn evidence_engine(&self) -> Arc<EvidenceEngine> {
         Arc::clone(&self.evidence)
+    }
+
+    /// Shared native namespaced storage handle.
+    #[must_use]
+    pub fn storage_engine(&self) -> Arc<StorageEngine> {
+        Arc::clone(&self.storage)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -620,6 +640,37 @@ fn evidence_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn storage_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: STORAGE_ENGINE_ID.to_owned(),
+        name: "VRTc Native Storage & Database Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "storage".to_owned(),
+        capabilities: vec![Capability {
+            id: STORAGE_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "get".to_owned(),
+                "put".to_owned(),
+                "delete".to_owned(),
+                "apply_batch".to_owned(),
+                "scan_namespace".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("backends".to_owned(), "memory,redb".to_owned()),
+                ("batch".to_owned(), "atomic".to_owned()),
+                ("namespace".to_owned(), "required".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -674,6 +725,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_storage_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(STORAGE_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "storage");
+        assert_eq!(engine.capabilities[0].id, STORAGE_CAPABILITY_ID);
     }
 
     #[test]
