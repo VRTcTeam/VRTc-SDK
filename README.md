@@ -1,0 +1,152 @@
+# VRTc SDK
+
+**VRTc** is a provider-agnostic, polyglot **Multi-Engine Research & Retrieval SDK**.
+
+It is designed to coordinate search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
+
+> Project status: architecture and specification phase. Runtime components are not yet implemented.
+
+## Project principles
+
+- **VRTc-owned core:** external services are optional integrations, not the identity or mandatory foundation of VRTc.
+- **Provider-agnostic:** engines and providers implement stable VRTc contracts.
+- **Polyglot SDK:** language clients share canonical API and data contracts.
+- **Composable execution:** subsystems can be used independently or orchestrated as a research workflow.
+- **Free-first:** local and self-hostable components should be viable defaults; external services may have their own costs and terms.
+- **Responsible retrieval:** integrations must respect authorization, applicable access policies, rate limits, and service terms.
+
+## Architecture decisions
+
+| Area | Decision |
+|---|---|
+| Architecture | Polyglot |
+| Core runtime | Rust |
+| First subsystem | Search Engine |
+| Primary deliverable | SDK |
+| Engine/provider registration | Hybrid: static and dynamic |
+
+### Runtime architecture
+
+The initial architecture is organized into these layers:
+
+1. **Language SDKs** — idiomatic clients for supported languages.
+2. **API and protocol layer** — stable public interfaces and internal contracts.
+3. **VRTc Core Runtime (Rust)** — lifecycle, configuration, registry, and execution foundations.
+4. **Research orchestration** — planning, scheduling, jobs, and events.
+5. **Engine subsystems** — search, metasearch, crawling, fetching, rendering, extraction, indexing, retrieval, verification, and related capabilities.
+6. **Adapters and infrastructure** — optional providers, storage, queues, and other integrations.
+
+The system should begin as a modular runtime. Components should become separate processes or services only when there is a clear operational reason.
+
+## Engine and provider registration
+
+VRTc uses a **hybrid registration model**:
+
+- **Static registration:** built-in engines and providers are registered during runtime initialization.
+- **Dynamic registration:** trusted custom engines and provider adapters can be registered while the runtime is running.
+- **Unified catalog:** the planner and orchestrator discover capabilities through one registry interface.
+
+Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.
+
+## Initial subsystem: Search Engine
+
+The first subsystem will establish VRTc's provider-independent search contract.
+
+Initial responsibilities:
+
+- query validation and normalization;
+- provider capability discovery and dispatch;
+- concurrent provider execution with bounded resources;
+- timeout and cancellation handling;
+- result normalization and deduplication;
+- ranking and result merging;
+- filters such as language, date, and domain;
+- provenance retention and provider-level error isolation.
+
+The VRTc Search Engine is the system that coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
+
+External search services are optional adapters. The core SDK must not require a paid provider to exist.
+
+## Core contracts
+
+The specification will define shared models before implementation, including:
+
+- `ResearchRequest`
+- `ResearchJob`
+- `EngineDescriptor`
+- `ProviderDescriptor`
+- `SearchQuery`
+- `SearchResult`
+- `Source`
+- `Document`
+- `Evidence`
+- `RetrievalResult`
+- `ResearchResult`
+- `EngineEvent`
+- `VRTcError`
+
+Contracts should carry stable identifiers, schema versions, timestamps where relevant, structured status and error information, and source provenance.
+
+## Protocol direction
+
+The current protocol direction is:
+
+- **REST + OpenAPI** for the public HTTP API and generated client support.
+- **Protobuf + gRPC** for typed internal service communication where needed.
+- **WASM Component Model + WIT** as a possible interface for isolated plugins.
+
+These are architecture choices under specification, not claims that the protocols are already implemented.
+
+## Language ecosystem
+
+The currently selected SDK ecosystem contains 19 entries:
+
+Python, Elixir, Assembly, JavaScript, Java, Markdown, TypeScript, Rust, C#, Go, C++, Kotlin, SQL, Ruby, Lua, PHP, Dart, Julia, and Haxe.
+
+Not every entry is intended to implement every subsystem. Language clients and integrations will be prioritized according to practical use cases. Markdown and SQL are supporting interface/data languages rather than general-purpose SDK implementation targets.
+
+## Planned subsystem landscape
+
+The long-term architecture currently identifies these 20 subsystem areas:
+
+1. Crawler Engine
+2. Search Engine
+3. Metasearch Engine
+4. Delta & Change Detection Engine
+5. URL Frontier & Scheduler
+6. HTTP Fetcher Engine
+7. Browser & Rendering Engine
+8. Proxy & Network Routing Engine
+9. DNS & TLS Infrastructure
+10. Parsing & Extraction Engine
+11. Indexing Engine
+12. Retrieval & Reranking Engine
+13. Web Archive Engine
+14. Storage & Database Engine
+15. Queue & Distributed Processing Engine
+16. Research & Agent Orchestration
+17. Evidence & Verification Engine
+18. Monitoring & Observability Engine
+19. Security & Policy Engine
+20. Provider Integration Engine
+
+This is a target architecture, not a statement that all subsystems are available today.
+
+## Development roadmap
+
+| Milestone | Focus |
+|---|---|
+| M0 | Architecture and project specification |
+| M1 | Core contracts and registry specification |
+| M2 | Rust core foundation and registry implementation |
+| M3 | First Search Engine implementation |
+| M4 | Initial public API and SDK client |
+| M5 | Additional language SDKs and provider adapters |
+| M6 | Additional research and retrieval subsystems |
+| M7 | Hardening, documentation, compatibility, and releases |
+
+## Repository status
+
+This repository is at the initial specification stage. Features, APIs, and implementation details may evolve through documented design decisions and versioned contracts.
+
+No provider credentials are required to define or build the core contracts. Provider integrations should be configured explicitly by the operator.
