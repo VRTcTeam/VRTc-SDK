@@ -22,7 +22,7 @@ const FETCHER_CAPABILITY_ID: &str = "http.fetch";
 const EXTRACT_ENGINE_ID: &str = "engine.vrtc.extract";
 const EXTRACT_CAPABILITY_ID: &str = "content.extract";
 
-/// Runtime configuration for the initial Search Engine subsystem.
+/// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
 pub struct RuntimeConfig {
     pub search: SearchConfig,
