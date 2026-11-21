@@ -309,10 +309,9 @@ impl SearchEngine {
                 let score = fused_scores.get(&key).copied().unwrap_or_default();
                 let sources = contributing_sources.remove(&key).unwrap_or_default();
                 result.score = Some(score);
-                result.metadata.insert(
-                    "vrtc.metasearch.rrf_score".to_owned(),
-                    score.to_string(),
-                );
+                result
+                    .metadata
+                    .insert("vrtc.metasearch.rrf_score".to_owned(), score.to_string());
                 result.metadata.insert(
                     "vrtc.metasearch.source_count".to_owned(),
                     sources.len().to_string(),
