@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
+use vrtc_crawler::{CrawlerConfig, CrawlerEngine};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -32,6 +33,8 @@ const RETRIEVAL_ENGINE_ID: &str = "engine.vrtc.retrieval";
 const RETRIEVAL_CAPABILITY_ID: &str = "retrieval.fuse";
 const FEEDBACK_ENGINE_ID: &str = "engine.vrtc.feedback";
 const FEEDBACK_CAPABILITY_ID: &str = "human.review";
+const CRAWLER_ENGINE_ID: &str = "engine.vrtc.crawler";
+const CRAWLER_CAPABILITY_ID: &str = "crawl.execute";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -43,6 +46,7 @@ pub struct RuntimeConfig {
     pub index: IndexConfig,
     pub retrieval: RetrievalConfig,
     pub feedback: FeedbackConfig,
+    pub crawler: CrawlerConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -55,6 +59,7 @@ pub struct VrtcRuntime {
     index: Arc<IndexEngine>,
     retrieval: Arc<RetrievalEngine>,
     feedback: Arc<FeedbackEngine>,
+    crawler: Arc<CrawlerEngine>,
     registration_lock: Mutex<()>,
 }
 
@@ -69,6 +74,13 @@ impl VrtcRuntime {
         let index = Arc::new(IndexEngine::new(config.index)?);
         let retrieval = Arc::new(RetrievalEngine::new(Arc::clone(&index), config.retrieval)?);
         let feedback = Arc::new(FeedbackEngine::new(config.feedback)?);
+        let crawler = Arc::new(CrawlerEngine::new(
+            config.crawler,
+            Arc::clone(&frontier),
+            Arc::clone(&fetcher),
+            Arc::clone(&extraction),
+            Arc::clone(&index),
+        )?);
         registry.register_static_engine(search_engine_descriptor())?;
         registry.activate_engine(SEARCH_ENGINE_ID)?;
         registry.register_static_engine(metasearch_engine_descriptor())?;
@@ -85,6 +97,8 @@ impl VrtcRuntime {
         registry.activate_engine(RETRIEVAL_ENGINE_ID)?;
         registry.register_static_engine(feedback_engine_descriptor())?;
         registry.activate_engine(FEEDBACK_ENGINE_ID)?;
+        registry.register_static_engine(crawler_engine_descriptor())?;
+        registry.activate_engine(CRAWLER_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -95,6 +109,7 @@ impl VrtcRuntime {
             index,
             retrieval,
             feedback,
+            crawler,
             registration_lock: Mutex::new(()),
         })
     }
@@ -227,6 +242,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn feedback_engine(&self) -> Arc<FeedbackEngine> {
         Arc::clone(&self.feedback)
+    }
+
+    /// Shared native policy-aware Crawler orchestration handle.
+    #[must_use]
+    pub fn crawler_engine(&self) -> Arc<CrawlerEngine> {
+        Arc::clone(&self.crawler)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -468,6 +489,38 @@ fn feedback_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn crawler_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: CRAWLER_ENGINE_ID.to_owned(),
+        name: "VRTc Native Policy-Aware Crawler".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "crawler".to_owned(),
+        capabilities: vec![Capability {
+            id: CRAWLER_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "crawl_seeds".to_owned(),
+                "discover_links".to_owned(),
+                "enforce_robots".to_owned(),
+                "extract_and_index".to_owned(),
+                "report_run".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("execution".to_owned(), "sequential-bounded-run".to_owned()),
+                ("scope".to_owned(), "same-origin-by-default".to_owned()),
+                ("robots".to_owned(), "rfc9309-conservative-policy".to_owned()),
+                ("network".to_owned(), "public-addresses-only".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -522,6 +575,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_crawler_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(CRAWLER_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "crawler");
+        assert_eq!(engine.capabilities[0].id, CRAWLER_CAPABILITY_ID);
     }
 
     #[test]
