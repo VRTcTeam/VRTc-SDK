@@ -4,7 +4,7 @@
 
 It is designed to coordinate search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: architecture and specification phase. Runtime components are not yet implemented.
+> Project status: M1 contract and registry specification baseline. Runtime components are not yet implemented.
 
 ## Project principles
 
@@ -46,7 +46,7 @@ VRTc uses a **hybrid registration model**:
 - **Dynamic registration:** trusted custom engines and provider adapters can be registered while the runtime is running.
 - **Unified catalog:** the planner and orchestrator discover capabilities through one registry interface.
 
-Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.
+Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.\n\nThe M1 contract and registry baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md).
 
 ## Initial subsystem: Search Engine
 
@@ -137,7 +137,7 @@ This is a target architecture, not a statement that all subsystems are available
 | Milestone | Focus |
 |---|---|
 | M0 | Architecture and project specification |
-| M1 | Core contracts and registry specification |
+| M1 | Core contracts and registry specification | Specification baseline drafted |\n| M2 | Rust core foundation and registry implementation |
 | M2 | Rust core foundation and registry implementation |
 | M3 | First Search Engine implementation |
 | M4 | Initial public API and SDK client |
@@ -145,7 +145,7 @@ This is a target architecture, not a statement that all subsystems are available
 | M6 | Additional research and retrieval subsystems |
 | M7 | Hardening, documentation, compatibility, and releases |
 
-## Repository status
+## CI/CD\n\nGitHub Actions currently provides repository checks, conditional Rust workspace checks, CodeQL analysis for workflow code, dependency review, OpenSSF Scorecard reporting, Dependabot updates, and tag-triggered source releases. Rust formatting, Clippy, and test steps activate when a Cargo workspace exists. Until then, a green repository check is not evidence of a successful Rust build.\n\n## Security\n\nDo not commit credentials or local environment files. Use repository or environment secrets for CI credentials. See [SECURITY.md](SECURITY.md) for vulnerability reporting guidance.\n\n## Repository status
 
 This repository is at the initial specification stage. Features, APIs, and implementation details may evolve through documented design decisions and versioned contracts.
 
