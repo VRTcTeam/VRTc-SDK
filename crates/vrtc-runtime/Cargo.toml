@@ -1,0 +1,17 @@
+[package]
+name = "vrtc-runtime"
+version = "0.1.0"
+description = "Composable Rust runtime for the VRTc SDK"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+tokio.workspace = true
+vrtc-core = { path = "../vrtc-core" }
+vrtc-registry = { path = "../vrtc-registry" }
+vrtc-search = { path = "../vrtc-search" }
+
+[lints]
+workspace = true

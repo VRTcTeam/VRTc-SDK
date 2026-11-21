@@ -4,6 +4,7 @@ members = [
     "crates/vrtc-core",
     "crates/vrtc-registry",
     "crates/vrtc-search",
+    "crates/vrtc-runtime",
     "crates/vrtc-api",
 ]
 
