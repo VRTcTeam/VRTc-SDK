@@ -496,7 +496,6 @@ mod tests {
     }
 }
 
-
 #[cfg(test)]
 mod engine_abstraction_tests {
     use super::*;
