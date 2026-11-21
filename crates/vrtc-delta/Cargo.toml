@@ -1,0 +1,16 @@
+[package]
+name = "vrtc-delta"
+version = "0.1.0"
+description = "Native content change detection and version history for VRTc"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+sha2 = "=0.11.1"
+similar = "=2.7.0"
+url = "2"
+vrtc-core = { path = "../vrtc-core" }
+
+[lints]
+workspace = true
