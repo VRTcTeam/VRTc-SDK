@@ -13,9 +13,7 @@ use url::Url;
 use vrtc_core::{ErrorCategory, VrtCError};
 use vrtc_extract::ExtractionEngine;
 use vrtc_fetcher::FetchEngine;
-use vrtc_frontier::{
-    CrawlRequest, EnqueueOutcome, FrontierEngine, FrontierStats, RetryOutcome,
-};
+use vrtc_frontier::{CrawlRequest, EnqueueOutcome, FrontierEngine, FrontierStats, RetryOutcome};
 use vrtc_index::{IndexDocument, IndexEngine};
 
 #[derive(Debug, Clone)]
@@ -59,8 +57,14 @@ enum RobotsDecision {
 
 #[derive(Debug, Clone)]
 enum CachedRobots {
-    Rules { body: String, expires_at: Instant },
-    Decision { value: RobotsDecision, expires_at: Instant },
+    Rules {
+        body: String,
+        expires_at: Instant,
+    },
+    Decision {
+        value: RobotsDecision,
+        expires_at: Instant,
+    },
 }
 
 impl CachedRobots {
@@ -83,9 +87,7 @@ impl CachedRobots {
 
     fn is_fresh(&self, now: Instant) -> bool {
         match self {
-            Self::Rules { expires_at, .. } | Self::Decision { expires_at, .. } => {
-                *expires_at > now
-            }
+            Self::Rules { expires_at, .. } | Self::Decision { expires_at, .. } => *expires_at > now,
         }
     }
 }
@@ -253,10 +255,7 @@ impl CrawlerEngine {
 
             report.pages_fetched += 1;
             let html = String::from_utf8_lossy(&response.body);
-            let extracted = match self
-                .extraction
-                .extract(&html, Some(&response.final_url))
-            {
+            let extracted = match self.extraction.extract(&html, Some(&response.final_url)) {
                 Ok(document) => document,
                 Err(_) => {
                     self.frontier.complete(&lease.id)?;
@@ -383,10 +382,7 @@ impl CrawlerEngine {
         delay: Duration,
         report: &mut CrawlRunReport,
     ) -> Result<(), VrtCError> {
-        match self
-            .frontier
-            .retry(lease_id, SystemTime::now(), delay)?
-        {
+        match self.frontier.retry(lease_id, SystemTime::now(), delay)? {
             RetryOutcome::Requeued => {}
             RetryOutcome::Exhausted => report.retry_exhausted += 1,
         }
@@ -400,12 +396,7 @@ fn origin_of(raw_url: &str) -> String {
         .unwrap_or_default()
 }
 
-fn crawler_error(
-    code: &str,
-    message: &str,
-    category: ErrorCategory,
-    retryable: bool,
-) -> VrtCError {
+fn crawler_error(code: &str, message: &str, category: ErrorCategory, retryable: bool) -> VrtCError {
     VrtCError::new(code, message, category, retryable)
 }
 
@@ -420,14 +411,8 @@ mod tests {
             body: body.to_owned(),
             expires_at: Instant::now() + Duration::from_secs(60),
         };
-        assert!(!rules.permits(
-            "VRTc-Fetcher",
-            "https://example.org/private/secret"
-        ));
-        assert!(rules.permits(
-            "VRTc-Fetcher",
-            "https://example.org/private/public/page"
-        ));
+        assert!(!rules.permits("VRTc-Fetcher", "https://example.org/private/secret"));
+        assert!(rules.permits("VRTc-Fetcher", "https://example.org/private/public/page"));
     }
 
     #[test]
