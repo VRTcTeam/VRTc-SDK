@@ -3,7 +3,6 @@
 //! The frontier owns URL identity, deduplication, priority, depth limits,
 //! per-host politeness, leases, retries, and recovery. It does not fetch pages.
 
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, SystemTime};
 
@@ -193,7 +192,7 @@ impl FrontierEngine {
                     && state
                         .host_next_allowed
                         .get(&entry.host)
-                        .is_none_or(|allowed| *allowed <= now)
+                        .map_or(true, |allowed| *allowed <= now)
             })
             .max_by(|left, right| {
                 left.request
