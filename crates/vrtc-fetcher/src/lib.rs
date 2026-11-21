@@ -353,12 +353,7 @@ fn selected_headers(headers: &reqwest::header::HeaderMap) -> BTreeMap<String, St
     .collect()
 }
 
-fn fetch_error(
-    code: &str,
-    message: &str,
-    category: ErrorCategory,
-    retryable: bool,
-) -> VrtCError {
+fn fetch_error(code: &str, message: &str, category: ErrorCategory, retryable: bool) -> VrtCError {
     VrtCError::new(code, message, category, retryable)
 }
 
