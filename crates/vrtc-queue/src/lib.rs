@@ -17,6 +17,7 @@ const STORAGE_NAMESPACE: &str = "queue";
 pub struct QueueConfig {
     pub max_jobs: usize,
     pub max_payload_bytes: usize,
+    pub max_job_id_bytes: usize,
     pub max_job_type_bytes: usize,
     pub max_worker_id_bytes: usize,
     pub default_max_attempts: u32,
@@ -29,6 +30,7 @@ impl Default for QueueConfig {
         Self {
             max_jobs: 1_000,
             max_payload_bytes: 1024 * 1024,
+            max_job_id_bytes: 256,
             max_job_type_bytes: 128,
             max_worker_id_bytes: 128,
             default_max_attempts: 3,
@@ -154,7 +156,10 @@ impl JobQueueEngine {
 
     pub fn submit(&self, submission: JobSubmission) -> Result<JobRecord, VrtCError> {
         if submission.id.trim().is_empty()
+            || submission.id.len() > self.config.max_job_id_bytes
+            || submission.id.chars().any(char::is_control)
             || submission.job_type.trim().is_empty()
+            || submission.job_type.chars().any(char::is_control)
             || submission.job_type.len() > self.config.max_job_type_bytes
             || submission.payload.len() > self.config.max_payload_bytes
             || submission.max_attempts == Some(0)
@@ -279,7 +284,7 @@ impl JobQueueEngine {
             .get(job_id)
             .cloned()
             .ok_or_else(|| job_not_found(job_id))?;
-        validate_lease(&job, worker_id, generation)?;
+        validate_lease(&job, worker_id, generation, now_ms)?;
         job.status = JobStatus::Completed;
         job.completed_at_ms = Some(now_ms);
         job.leased_by = None;
@@ -438,7 +443,10 @@ impl JobQueueEngine {
     }
 
     fn validate_worker(&self, worker_id: &str) -> Result<(), VrtCError> {
-        if worker_id.trim().is_empty() || worker_id.len() > self.config.max_worker_id_bytes {
+        if worker_id.trim().is_empty()
+            || worker_id.len() > self.config.max_worker_id_bytes
+            || worker_id.chars().any(char::is_control)
+        {
             return Err(queue_error(
                 "INVALID_WORKER_ID",
                 "Worker ID must be non-empty and within the configured limit",
@@ -503,6 +511,7 @@ impl JobQueueEngine {
 fn validate_config(config: &QueueConfig) -> Result<(), VrtCError> {
     if config.max_jobs == 0
         || config.max_payload_bytes == 0
+        || config.max_job_id_bytes == 0
         || config.max_job_type_bytes == 0
         || config.max_worker_id_bytes == 0
         || config.default_max_attempts == 0
@@ -523,10 +532,12 @@ fn validate_lease(
     job: &JobRecord,
     worker_id: &str,
     generation: u64,
+    now_ms: u64,
 ) -> Result<(), VrtCError> {
     if job.status != JobStatus::Leased
         || job.leased_by.as_deref() != Some(worker_id)
         || job.lease_generation != generation
+        || job.lease_until_ms.is_none_or(|expires| expires <= now_ms)
     {
         return Err(queue_error(
             "STALE_OR_INVALID_JOB_LEASE",
@@ -603,6 +614,15 @@ mod tests {
         assert_eq!(outcome, RetryOutcome::DeadLetter);
         assert_eq!(record.status, JobStatus::DeadLetter);
         assert_eq!(queue.dead_letters(10).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn expired_worker_cannot_ack_a_job_before_recovery() {
+        let queue = JobQueueEngine::new(QueueConfig::default(), None).unwrap();
+        queue.submit(submission("expired-job", 1)).unwrap();
+        let lease = queue.lease_next("worker", 10, 10).unwrap().unwrap();
+        assert!(queue.ack("expired-job", "worker", lease.generation, 20).is_err());
+        assert_eq!(queue.recover_expired(20).unwrap().requeued, 1);
     }
 
     #[test]
