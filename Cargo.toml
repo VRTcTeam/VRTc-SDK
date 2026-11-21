@@ -4,6 +4,7 @@ members = [
     "crates/vrtc-core",
     "crates/vrtc-registry",
     "crates/vrtc-search",
+    "crates/vrtc-api",
 ]
 
 [workspace.package]
@@ -13,6 +14,8 @@ rust-version = "1.80"
 
 [workspace.dependencies]
 async-trait = "0.1"
+axum = { version = "0.7", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread", "sync", "time"] }
 
 [workspace.lints.rust]
