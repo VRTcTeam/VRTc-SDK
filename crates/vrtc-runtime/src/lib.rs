@@ -18,6 +18,7 @@ use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_queue::{JobQueueEngine, QueueConfig};
+use vrtc_queue::{JobQueueEngine, QueueConfig};
 use vrtc_observability::{ObservabilityConfig, ObservabilityEngine};
 use vrtc_registry::Registry;
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
