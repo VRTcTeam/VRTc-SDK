@@ -401,8 +401,10 @@ mod tests {
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100);
         let mut low = CrawlRequest::new("https://example.org/low");
         low.priority = 1;
+        low.not_before = now;
         let mut high = CrawlRequest::new("https://other.example/high");
         high.priority = 9;
+        high.not_before = now;
         frontier.enqueue(low).unwrap();
         frontier.enqueue(high).unwrap();
 
@@ -421,9 +423,9 @@ mod tests {
         })
         .unwrap();
         let now = SystemTime::UNIX_EPOCH + Duration::from_secs(100);
-        frontier
-            .enqueue(CrawlRequest::new("https://example.org/"))
-            .unwrap();
+        let mut request = CrawlRequest::new("https://example.org/");
+        request.not_before = now;
+        frontier.enqueue(request).unwrap();
         let lease = frontier.lease_next(now).unwrap().unwrap();
         assert_eq!(
             frontier
