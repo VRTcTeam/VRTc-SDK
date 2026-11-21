@@ -5,7 +5,7 @@ Official TypeScript client for an operator-hosted VRTc HTTP API. Requires Node.j
 ## Install
 
 ```sh
-npm install @vrtc/sdk
+npm install ./sdks/typescript
 ```
 
 ## Usage
