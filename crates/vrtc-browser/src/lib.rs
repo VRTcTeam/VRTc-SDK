@@ -14,6 +14,7 @@ use std::time::{Duration, Instant};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::emulation::SetScriptExecutionDisabledParams;
 use futures::StreamExt;
+use tokio::sync::Semaphore;
 use tokio::time::timeout;
 use vrtc_core::{ErrorCategory, VrtCError};
 use vrtc_policy::{PolicyEngine, PolicyOutcome, PolicyRequest};
@@ -23,6 +24,8 @@ pub struct BrowserRenderConfig {
     pub chrome_executable: Option<PathBuf>,
     pub operation_timeout_ms: u64,
     pub max_html_bytes: usize,
+    pub max_concurrent_renders: usize,
+    pub max_queue_wait_ms: u64,
 }
 
 impl Default for BrowserRenderConfig {
@@ -31,6 +34,8 @@ impl Default for BrowserRenderConfig {
             chrome_executable: None,
             operation_timeout_ms: 20_000,
             max_html_bytes: 2 * 1024 * 1024,
+            max_concurrent_renders: 2,
+            max_queue_wait_ms: 5_000,
         }
     }
 }
@@ -57,18 +62,24 @@ pub struct RenderedPage {
 pub struct BrowserRenderer {
     config: BrowserRenderConfig,
     policy: Arc<PolicyEngine>,
+    render_slots: Arc<Semaphore>,
 }
 
 impl BrowserRenderer {
     pub fn new(config: BrowserRenderConfig, policy: Arc<PolicyEngine>) -> Result<Self, VrtCError> {
-        if config.operation_timeout_ms == 0 || config.max_html_bytes == 0 {
+        if config.operation_timeout_ms == 0
+            || config.max_html_bytes == 0
+            || config.max_concurrent_renders == 0
+            || config.max_queue_wait_ms == 0
+        {
             return Err(browser_error(
                 "INVALID_BROWSER_CONFIG",
-                "Browser timeout and HTML size limits must be positive",
+                "Browser timeout, HTML size, concurrency, and queue wait limits must be positive",
                 ErrorCategory::Validation,
             ));
         }
-        Ok(Self { config, policy })
+        let render_slots = Arc::new(Semaphore::new(config.max_concurrent_renders));
+        Ok(Self { config, policy, render_slots })
     }
 
     pub async fn render(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
@@ -98,6 +109,26 @@ impl BrowserRenderer {
             browser_error(
                 "BROWSER_POLICY_RESULT_INVALID",
                 "Allowed policy result did not include a normalized source URL",
+                ErrorCategory::Internal,
+            )
+        })?;
+
+        let _render_permit = timeout(
+            Duration::from_millis(self.config.max_queue_wait_ms),
+            Arc::clone(&self.render_slots).acquire_owned(),
+        )
+        .await
+        .map_err(|_| {
+            browser_error(
+                "BROWSER_RENDER_CAPACITY_TIMEOUT",
+                "Browser render capacity was unavailable before the queue wait limit",
+                ErrorCategory::ResourceExhausted,
+            )
+        })?
+        .map_err(|_| {
+            browser_error(
+                "BROWSER_RENDER_CAPACITY_CLOSED",
+                "Browser render capacity is unavailable",
                 ErrorCategory::Internal,
             )
         })?;
@@ -502,6 +533,59 @@ mod engine_abstraction_tests {
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn rejects_zero_browser_concurrency_or_queue_wait() {
+        let mut config = BrowserRenderConfig::default();
+        config.max_concurrent_renders = 0;
+        assert_eq!(
+            BrowserRenderer::new(
+                config,
+                Arc::new(PolicyEngine::new(Default::default()).unwrap()),
+            )
+            .unwrap_err()
+            .code,
+            "INVALID_BROWSER_CONFIG"
+        );
+
+        let mut config = BrowserRenderConfig::default();
+        config.max_queue_wait_ms = 0;
+        assert_eq!(
+            BrowserRenderer::new(
+                config,
+                Arc::new(PolicyEngine::new(Default::default()).unwrap()),
+            )
+            .unwrap_err()
+            .code,
+            "INVALID_BROWSER_CONFIG"
+        );
+    }
+
+    #[tokio::test]
+    async fn render_queue_is_bounded_by_configured_wait_limit() {
+        let mut config = BrowserRenderConfig::default();
+        config.max_concurrent_renders = 1;
+        config.max_queue_wait_ms = 10;
+        let renderer = BrowserRenderer::new(
+            config,
+            Arc::new(PolicyEngine::new(Default::default()).unwrap()),
+        )
+        .unwrap();
+        let permit = Arc::clone(&renderer.render_slots).acquire_owned().await.unwrap();
+        let error = renderer
+            .render(BrowserRenderRequest {
+                source_url: "https://example.org".to_owned(),
+                origin_url: None,
+                html: "<h1>queued</h1>".to_owned(),
+                is_crawl: false,
+                crawl_depth: 0,
+                robots_allowed: None,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "BROWSER_RENDER_CAPACITY_TIMEOUT");
+        drop(permit);
     }
 
     #[test]
