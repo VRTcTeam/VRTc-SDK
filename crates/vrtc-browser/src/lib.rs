@@ -165,7 +165,7 @@ impl BrowserRenderer {
 
         let offline_html = apply_offline_csp(&request.html);
         let render_result = async {
-            timeout(operation_timeout, page.disable_javascript())
+            timeout(operation_timeout, page.set_javascript_enabled(false))
                 .await
                 .map_err(|_| {
                     browser_error(
