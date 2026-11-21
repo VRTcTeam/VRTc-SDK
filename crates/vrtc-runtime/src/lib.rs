@@ -17,8 +17,8 @@ use vrtc_feedback::{FeedbackConfig, FeedbackEngine};
 use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
-use vrtc_queue::{JobQueueEngine, QueueConfig};
 use vrtc_observability::{ObservabilityConfig, ObservabilityEngine};
+use vrtc_queue::{JobQueueEngine, QueueConfig};
 use vrtc_registry::Registry;
 use vrtc_research::{ResearchConfig, ResearchPlanner};
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
@@ -823,8 +823,14 @@ fn observability_engine_descriptor() -> EngineDescriptor {
             output_contract_version: "1".to_owned(),
             constraints: BTreeMap::from([
                 ("storage".to_owned(), "bounded-in-memory".to_owned()),
-                ("telemetry".to_owned(), "metrics-and-operational-events".to_owned()),
-                ("payload_policy".to_owned(), "no-raw-request-content".to_owned()),
+                (
+                    "telemetry".to_owned(),
+                    "metrics-and-operational-events".to_owned(),
+                ),
+                (
+                    "payload_policy".to_owned(),
+                    "no-raw-request-content".to_owned(),
+                ),
             ]),
             availability: CapabilityAvailability::Available,
         }],
