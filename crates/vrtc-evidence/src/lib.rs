@@ -218,10 +218,7 @@ impl EvidenceEngine {
         Ok(claim)
     }
 
-    pub fn attach_evidence(
-        &self,
-        input: EvidenceInput,
-    ) -> Result<EvidenceRecord, VrtCError> {
+    pub fn attach_evidence(&self, input: EvidenceInput) -> Result<EvidenceRecord, VrtCError> {
         if input.id.trim().is_empty()
             || input.source_id.trim().is_empty()
             || input.source_title.trim().is_empty()
@@ -290,10 +287,7 @@ impl EvidenceEngine {
     }
 
     /// Record one explicit assessment. Semantic support is never inferred here.
-    pub fn assess_evidence(
-        &self,
-        input: AssessmentInput,
-    ) -> Result<EvidenceAssessment, VrtCError> {
+    pub fn assess_evidence(&self, input: AssessmentInput) -> Result<EvidenceAssessment, VrtCError> {
         if input.assessor_id.trim().is_empty()
             || input.rationale.len() > self.config.max_rationale_bytes
             || !input.confidence.is_finite()
@@ -417,10 +411,7 @@ impl EvidenceEngine {
         Ok(state.evidence.get(evidence_id).cloned())
     }
 
-    pub fn assessment(
-        &self,
-        evidence_id: &str,
-    ) -> Result<Option<EvidenceAssessment>, VrtCError> {
+    pub fn assessment(&self, evidence_id: &str) -> Result<Option<EvidenceAssessment>, VrtCError> {
         let state = self.lock_state()?;
         Ok(state.assessments.get(evidence_id).cloned())
     }
