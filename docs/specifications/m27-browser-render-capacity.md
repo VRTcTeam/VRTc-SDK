@@ -23,7 +23,7 @@ BrowserRenderConfig adds:
 - max_concurrent_renders: maximum simultaneous render operations for one renderer instance; default 2.
 - max_queue_wait_ms: maximum time a caller waits for a render slot; default 5000.
 
-Both values must be positive. Existing operation_timeout_ms and max_html_bytes validation remains in force.
+Both values must be positive. max_concurrent_renders must also stay within Tokio Semaphore's supported permit range; oversized values are rejected rather than allowed to panic. Existing operation_timeout_ms and max_html_bytes validation remains in force.
 
 Input-size and URL-policy checks happen before admission, so rejected requests do not consume a render slot. A slot is held from admission through browser launch, page rendering, and cleanup. If no slot becomes available before the queue-wait limit, the renderer returns BROWSER_RENDER_CAPACITY_TIMEOUT with ResourceExhausted. A closed semaphore returns BROWSER_RENDER_CAPACITY_CLOSED.
 
@@ -40,7 +40,7 @@ The capacity is per BrowserRenderer instance and process. It is not a distribute
 
 ## Acceptance criteria
 
-1. Zero concurrency and zero queue-wait settings are rejected as invalid configuration.
+1. Zero concurrency, zero queue-wait, and concurrency values above the semaphore permit limit are rejected as invalid configuration.
 2. Concurrent render operations cannot exceed the configured semaphore permits.
 3. Waiting for a permit is bounded by max_queue_wait_ms.
 4. Queue timeout returns the stable BROWSER_RENDER_CAPACITY_TIMEOUT error.
