@@ -136,7 +136,7 @@ This is a target architecture, not a statement that all subsystems are available
 |---|---|---|
 | M0 | Architecture and project specification | Baseline established |
 | M1 | Core contracts and registry specification | Specification baseline drafted |
-| M2 | Rust core foundation and registry implementation | Planned |
+| M2 | Rust core foundation and registry implementation | Initial workspace, contracts, and hybrid registry committed |
 | M3 | First Search Engine implementation | Planned |
 | M4 | Initial public API and SDK client | Planned |
 | M5 | Additional language SDKs and provider adapters | Planned |
@@ -147,7 +147,7 @@ This is a target architecture, not a statement that all subsystems are available
 
 GitHub Actions provides repository checks, conditional Rust workspace checks, CodeQL analysis for workflow code, dependency review, OpenSSF Scorecard reporting, Dependabot updates, and tag-triggered source releases.
 
-Rust formatting, Clippy, and test steps activate when a Cargo workspace exists. Until then, a green repository check is not evidence of a successful Rust build.
+Rust formatting, Clippy, and unit tests now activate against the initial Cargo workspace. The current Rust implementation is an early foundation, not a production-ready runtime.
 
 ## Security
 
