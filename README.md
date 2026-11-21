@@ -4,7 +4,7 @@
 
 It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
-> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle, and initial native Research Planner & Orchestration Graph, and initial native Monitoring & Observability telemetry, and initial native Security & Retrieval Policy engine, and initial native WARC Web Archive engine are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
+> Project status: Rust core contracts, hybrid registry, integrated runtime façade, provider-agnostic Search Engine and native RRF Metasearch, native URL Frontier & Scheduler, policy-constrained HTTP Fetcher, native HTML Extraction, embedded BM25 Document Index, native hybrid Retrieval & Reranking, and native Human Feedback & Evaluation, and native policy-aware Crawler orchestration, and native Delta & Content Versioning, and native Evidence Provenance & Verification, and native Storage & Database Engine, and native Job Queue & Processing Lifecycle, and initial native Research Planner & Orchestration Graph, and initial native Monitoring & Observability telemetry, and initial native Security & Retrieval Policy engine, and initial native WARC Web Archive engine, and initial native offline Browser Rendering Engine are implemented. Initial Search Engine HTTP router and first TypeScript/Python clients are implemented.
 
 ## Project principles
 
@@ -78,6 +78,10 @@ The runtime now statically registers a VRTc-owned URL Frontier Engine. It provid
 ## Native HTTP Fetcher
 
 The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
+
+## Native Browser & Rendering Engine
+
+VRTc includes an isolated Chromium renderer for already-fetched HTML snapshots. It evaluates the source URL through the Policy Engine, loads the supplied HTML into `about:blank`, disables JavaScript, injects a restrictive offline CSP, and returns the rendered DOM and title. It does not navigate to source sites or fetch subresources; a local Chromium executable must be installed separately. See [M22 Native Browser Rendering Specification](docs/specifications/m22-native-browser-rendering.md).
 
 ## Native WARC Web Archive Engine
 

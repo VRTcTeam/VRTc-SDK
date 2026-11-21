@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use vrtc_archive::{ArchiveConfig, ArchiveEngine};
+use vrtc_browser::{BrowserRenderConfig, BrowserRenderer};
 use vrtc_core::{
     Capability, CapabilityAvailability, EngineDescriptor, ErrorCategory, LifecycleState,
     ProviderDescriptor, RegistrationSource, SearchRequest, SearchResponse, VrtCError,
@@ -61,6 +62,8 @@ const POLICY_ENGINE_ID: &str = "engine.vrtc.policy";
 const POLICY_CAPABILITY_ID: &str = "policy.evaluate";
 const ARCHIVE_ENGINE_ID: &str = "engine.vrtc.archive";
 const ARCHIVE_CAPABILITY_ID: &str = "archive.warc";
+const BROWSER_ENGINE_ID: &str = "engine.vrtc.browser";
+const BROWSER_CAPABILITY_ID: &str = "browser.render";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -82,6 +85,7 @@ pub struct RuntimeConfig {
     pub observability: ObservabilityConfig,
     pub policy: PolicyConfig,
     pub archive: ArchiveConfig,
+    pub browser: BrowserRenderConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -103,6 +107,7 @@ pub struct VrtcRuntime {
     observability: Arc<ObservabilityEngine>,
     policy: Arc<PolicyEngine>,
     archive: Arc<ArchiveEngine>,
+    browser: Arc<BrowserRenderer>,
     registration_lock: Mutex<()>,
 }
 
@@ -137,6 +142,7 @@ impl VrtcRuntime {
         let observability = Arc::new(ObservabilityEngine::new(config.observability)?);
         let policy = Arc::new(PolicyEngine::new(config.policy)?);
         let archive = Arc::new(ArchiveEngine::new(config.archive)?);
+        let browser = Arc::new(BrowserRenderer::new(config.browser, Arc::clone(&policy))?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -179,6 +185,8 @@ impl VrtcRuntime {
         registry.activate_engine(POLICY_ENGINE_ID)?;
         registry.register_static_engine(archive_engine_descriptor())?;
         registry.activate_engine(ARCHIVE_ENGINE_ID)?;
+        registry.register_static_engine(browser_engine_descriptor())?;
+        registry.activate_engine(BROWSER_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -198,6 +206,7 @@ impl VrtcRuntime {
             observability,
             policy,
             archive,
+            browser,
             registration_lock: Mutex::new(()),
         })
     }
@@ -384,6 +393,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn archive_engine(&self) -> Arc<ArchiveEngine> {
         Arc::clone(&self.archive)
+    }
+
+    /// Shared isolated offline Chromium snapshot renderer.
+    #[must_use]
+    pub fn browser_renderer(&self) -> Arc<BrowserRenderer> {
+        Arc::clone(&self.browser)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -942,6 +957,36 @@ fn archive_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn browser_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: BROWSER_ENGINE_ID.to_owned(),
+        name: "VRTc Native Offline Browser Rendering Engine".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "browser-renderer".to_owned(),
+        capabilities: vec![Capability {
+            id: BROWSER_CAPABILITY_ID.to_owned(),
+            operations: vec![
+                "render_fetched_html".to_owned(),
+                "extract_rendered_dom".to_owned(),
+                "read_document_title".to_owned(),
+            ],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("network".to_owned(), "offline-snapshot-only".to_owned()),
+                ("javascript".to_owned(), "disabled".to_owned()),
+                ("policy".to_owned(), "native-policy-required".to_owned()),
+                ("input".to_owned(), "bounded-html".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -996,6 +1041,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_browser_engine_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(BROWSER_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "browser-renderer");
+        assert_eq!(engine.capabilities[0].id, BROWSER_CAPABILITY_ID);
     }
 
     #[test]
