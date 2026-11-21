@@ -29,7 +29,7 @@ impl Default for RetrievalConfig {
             rrf_constant: 60,
             lexical_weight: 0.5,
             semantic_weight: 0.5,
-            term_match_weight: 0.05,
+            term_match_weight: 0.002,
         }
     }
 }
@@ -110,7 +110,7 @@ pub struct RetrievalEngine {
 impl RetrievalEngine {
     pub fn new(
         index: std::sync::Arc<IndexEngine>,
-        config: RetrievalConfig,
+        mut config: RetrievalConfig,
     ) -> Result<Self, VrtCError> {
         if config.max_candidates_per_channel == 0
             || config.max_results == 0
@@ -126,6 +126,9 @@ impl RetrievalEngine {
                 ErrorCategory::Validation,
             ));
         }
+        let weight_total = config.lexical_weight + config.semantic_weight;
+        config.lexical_weight /= weight_total;
+        config.semantic_weight /= weight_total;
         Ok(Self { index, config })
     }
 
@@ -309,11 +312,13 @@ fn term_coverage(query: &str, title: &str, description: &str, excerpt: &str) -> 
     if query_terms.is_empty() {
         return 0.0;
     }
-    let content = format!("{title} {description} {excerpt}").to_ascii_lowercase();
-    let matched = query_terms
-        .iter()
-        .filter(|term| content.contains(term.as_str()))
-        .count();
+    let content_terms = format!("{title} {description} {excerpt}")
+        .to_ascii_lowercase()
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|term| term.len() > 1)
+        .map(str::to_owned)
+        .collect::<BTreeSet<_>>();
+    let matched = query_terms.intersection(&content_terms).count();
     matched as f32 / query_terms.len() as f32
 }
 
@@ -394,7 +399,8 @@ mod tests {
                 .count(),
             1
         );
-        assert!(response.results[0].rank == 1);
+        assert_eq!(response.results[0].rank, 1);
+        assert_eq!(response.results[0].url, "https://example.org/shared#old");
     }
 
     #[test]
