@@ -17,6 +17,7 @@ members = [
     "crates/vrtc-queue",
     "crates/vrtc-research",
     "crates/vrtc-observability",
+    "crates/vrtc-policy",
     "crates/vrtc-runtime",
     "crates/vrtc-api",
     "crates/vrtc-provider-geekflare",
