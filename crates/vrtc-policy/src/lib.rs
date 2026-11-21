@@ -93,8 +93,14 @@ impl PolicyEngine {
             || (!config.allow_http && !config.allow_https)
             || config.allowed_ports.is_empty()
             || config.allowed_ports.contains(&0)
-            || config.allowed_hosts.iter().any(|host| !valid_host_rule(host))
-            || config.denied_hosts.iter().any(|host| !valid_host_rule(host))
+            || config
+                .allowed_hosts
+                .iter()
+                .any(|host| !valid_host_rule(host))
+            || config
+                .denied_hosts
+                .iter()
+                .any(|host| !valid_host_rule(host))
             || config.allowed_origins.iter().any(|origin| {
                 Url::parse(origin).map_or(true, |url| {
                     !matches!(url.scheme(), "http" | "https")
@@ -146,17 +152,30 @@ impl PolicyEngine {
         if !scheme_allowed {
             return Ok(denied(PolicyReason::UnsupportedScheme));
         }
-        if !self.config.allowed_ports.contains(&target.port_or_known_default().unwrap_or(0)) {
+        if !self
+            .config
+            .allowed_ports
+            .contains(&target.port_or_known_default().unwrap_or(0))
+        {
             return Ok(denied(PolicyReason::PortNotAllowed));
         }
         let Some(host) = target.host_str().map(normalize_host) else {
             return Ok(denied(PolicyReason::InvalidUrl));
         };
-        if self.config.denied_hosts.iter().any(|rule| host_matches(&host, rule)) {
+        if self
+            .config
+            .denied_hosts
+            .iter()
+            .any(|rule| host_matches(&host, rule))
+        {
             return Ok(denied(PolicyReason::HostDenied));
         }
         if !self.config.allowed_hosts.is_empty()
-            && !self.config.allowed_hosts.iter().any(|rule| host_matches(&host, rule))
+            && !self
+                .config
+                .allowed_hosts
+                .iter()
+                .any(|rule| host_matches(&host, rule))
         {
             return Ok(denied(PolicyReason::HostNotAllowlisted));
         }
@@ -224,7 +243,8 @@ fn valid_host_rule(host: &str) -> bool {
         return false;
     }
     Url::parse(&format!("http://{host}/")).is_ok_and(|url| {
-        url.host_str().is_some_and(|parsed| normalize_host(parsed) == normalize_host(host))
+        url.host_str()
+            .is_some_and(|parsed| normalize_host(parsed) == normalize_host(host))
             && url.port().is_none()
             && url.username().is_empty()
             && url.password().is_none()
@@ -240,7 +260,10 @@ fn normalize_host(host: &str) -> String {
 }
 
 fn host_matches(host: &str, rule: &str) -> bool {
-    host == rule || host.strip_suffix(rule).is_some_and(|prefix| prefix.ends_with('.'))
+    host == rule
+        || host
+            .strip_suffix(rule)
+            .is_some_and(|prefix| prefix.ends_with('.'))
 }
 
 fn is_non_public_host(host: &str) -> bool {
@@ -274,7 +297,9 @@ fn is_non_public_host(host: &str) -> bool {
                 || ip.is_unspecified()
                 || ip.is_multicast()
                 || (segments[0] == 0x2001 && segments[1] == 0x0db8)
-                || ip.to_ipv4_mapped().is_some_and(|mapped| is_non_public_host(&mapped.to_string()))
+                || ip
+                    .to_ipv4_mapped()
+                    .is_some_and(|mapped| is_non_public_host(&mapped.to_string()))
         }
     }
 }
@@ -301,24 +326,38 @@ mod tests {
     #[test]
     fn allows_public_https_and_removes_fragment() {
         let engine = PolicyEngine::new(PolicyConfig::default()).unwrap();
-        let decision = engine.evaluate(&request("https://example.org/page#section")).unwrap();
+        let decision = engine
+            .evaluate(&request("https://example.org/page#section"))
+            .unwrap();
         assert_eq!(decision.outcome, PolicyOutcome::Allow);
-        assert_eq!(decision.normalized_url.as_deref(), Some("https://example.org/page"));
+        assert_eq!(
+            decision.normalized_url.as_deref(),
+            Some("https://example.org/page")
+        );
     }
 
     #[test]
     fn blocks_credentials_private_addresses_and_unsupported_schemes() {
         let engine = PolicyEngine::new(PolicyConfig::default()).unwrap();
         assert_eq!(
-            engine.evaluate(&request("https://user:pass@example.org")).unwrap().reason,
+            engine
+                .evaluate(&request("https://user:pass@example.org"))
+                .unwrap()
+                .reason,
             PolicyReason::CredentialsForbidden
         );
         assert_eq!(
-            engine.evaluate(&request("http://127.0.0.1")).unwrap().reason,
+            engine
+                .evaluate(&request("http://127.0.0.1"))
+                .unwrap()
+                .reason,
             PolicyReason::NonPublicAddress
         );
         assert_eq!(
-            engine.evaluate(&request("file:///etc/passwd")).unwrap().reason,
+            engine
+                .evaluate(&request("file:///etc/passwd"))
+                .unwrap()
+                .reason,
             PolicyReason::UnsupportedScheme
         );
     }
@@ -328,12 +367,19 @@ mod tests {
         let engine = PolicyEngine::new(PolicyConfig {
             denied_hosts: vec!["blocked.example".to_owned()],
             ..PolicyConfig::default()
-        }).unwrap();
+        })
+        .unwrap();
         let mut cross_origin = request("https://other.example.org/page");
         cross_origin.origin_url = Some("https://example.org".to_owned());
-        assert_eq!(engine.evaluate(&cross_origin).unwrap().reason, PolicyReason::CrossOriginDenied);
         assert_eq!(
-            engine.evaluate(&request("https://blocked.example/page")).unwrap().reason,
+            engine.evaluate(&cross_origin).unwrap().reason,
+            PolicyReason::CrossOriginDenied
+        );
+        assert_eq!(
+            engine
+                .evaluate(&request("https://blocked.example/page"))
+                .unwrap()
+                .reason,
             PolicyReason::HostDenied
         );
     }
@@ -342,12 +388,18 @@ mod tests {
     fn rejects_non_standard_ports_and_invalid_origins() {
         let engine = PolicyEngine::new(PolicyConfig::default()).unwrap();
         assert_eq!(
-            engine.evaluate(&request("https://example.org:8443/path")).unwrap().reason,
+            engine
+                .evaluate(&request("https://example.org:8443/path"))
+                .unwrap()
+                .reason,
             PolicyReason::PortNotAllowed
         );
         let mut invalid_origin = request("https://example.org/path");
         invalid_origin.origin_url = Some("file:///tmp".to_owned());
-        assert_eq!(engine.evaluate(&invalid_origin).unwrap().reason, PolicyReason::InvalidOrigin);
+        assert_eq!(
+            engine.evaluate(&invalid_origin).unwrap().reason,
+            PolicyReason::InvalidOrigin
+        );
     }
 
     #[test]
@@ -360,8 +412,14 @@ mod tests {
         assert_eq!(pending.reason, PolicyReason::RobotsNotApproved);
         assert!(pending.requires_robots_evaluation);
         crawl.robots_allowed = Some(true);
-        assert_eq!(engine.evaluate(&crawl).unwrap().outcome, PolicyOutcome::Allow);
+        assert_eq!(
+            engine.evaluate(&crawl).unwrap().outcome,
+            PolicyOutcome::Allow
+        );
         crawl.crawl_depth = 6;
-        assert_eq!(engine.evaluate(&crawl).unwrap().reason, PolicyReason::CrawlDepthExceeded);
+        assert_eq!(
+            engine.evaluate(&crawl).unwrap().reason,
+            PolicyReason::CrawlDepthExceeded
+        );
     }
 }
