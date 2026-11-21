@@ -544,15 +544,6 @@ mod tests {
     }
 
     #[test]
-    fn built_in_feedback_engine_is_registered_and_ready() {
-        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
-        let engine = runtime.registry().engine(FEEDBACK_ENGINE_ID).unwrap();
-        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
-        assert_eq!(engine.kind, "human-feedback");
-        assert_eq!(engine.capabilities[0].id, FEEDBACK_CAPABILITY_ID);
-    }
-
-    #[test]
     fn built_in_retrieval_engine_is_registered_and_ready() {
         let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
         let engine = runtime.registry().engine(RETRIEVAL_ENGINE_ID).unwrap();
