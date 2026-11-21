@@ -28,7 +28,7 @@ impl Default for IndexConfig {
     fn default() -> Self {
         Self {
             storage_dir: None,
-            writer_heap_size_bytes: 50_000_000,
+            writer_heap_size_bytes: 15_000_000,
             max_batch_documents: 1_000,
             max_document_bytes: 4 * 1024 * 1024,
             max_query_chars: 512,
