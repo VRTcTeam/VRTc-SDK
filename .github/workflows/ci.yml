@@ -36,24 +36,32 @@ jobs:
   rust-workspace:
     name: Rust workspace
     runs-on: ubuntu-latest
-    if: ${{ hashFiles('Cargo.toml') != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install stable Rust toolchain
+        if: ${{ hashFiles('Cargo.toml') != '' }}
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
       - name: Cache Rust build
+        if: ${{ hashFiles('Cargo.toml') != '' }}
         uses: Swatinem/rust-cache@v2
 
       - name: Check formatting
+        if: ${{ hashFiles('Cargo.toml') != '' }}
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
+        if: ${{ hashFiles('Cargo.toml') != '' }}
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Run tests
+        if: ${{ hashFiles('Cargo.toml') != '' }}
         run: cargo test --workspace --all-features
+
+      - name: Explain skipped Rust checks
+        if: ${{ hashFiles('Cargo.toml') == '' }}
+        run: echo "Rust checks are deferred until the Cargo workspace is introduced."
