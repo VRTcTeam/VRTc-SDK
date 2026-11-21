@@ -148,7 +148,8 @@ impl FeedbackEngine {
         }
         let mut ids = BTreeSet::new();
         for candidate in &candidates {
-            if candidate.document_id.trim().is_empty() || !ids.insert(candidate.document_id.clone()) {
+            if candidate.document_id.trim().is_empty() || !ids.insert(candidate.document_id.clone())
+            {
                 return Err(feedback_error(
                     "INVALID_REVIEW_CANDIDATE",
                     "Review candidates require unique, non-empty document IDs",
@@ -217,7 +218,10 @@ impl FeedbackEngine {
     ) -> Result<RelevanceJudgment, VrtCError> {
         self.validate_judgment(reviewer_id, relevance, rubric_version, notes.as_deref())?;
         let mut state = self.lock_state()?;
-        let task = state.tasks.get(task_id).ok_or_else(|| task_not_found(task_id))?;
+        let task = state
+            .tasks
+            .get(task_id)
+            .ok_or_else(|| task_not_found(task_id))?;
         if task.rubric_version != rubric_version {
             return Err(feedback_error(
                 "RUBRIC_VERSION_MISMATCH",
@@ -225,14 +229,21 @@ impl FeedbackEngine {
                 ErrorCategory::Validation,
             ));
         }
-        if !task.candidates.iter().any(|candidate| candidate.document_id == document_id) {
+        if !task
+            .candidates
+            .iter()
+            .any(|candidate| candidate.document_id == document_id)
+        {
             return Err(feedback_error(
                 "DOCUMENT_NOT_IN_REVIEW_TASK",
                 "The document is not part of this review task",
                 ErrorCategory::Validation,
             ));
         }
-        let judgments = state.judgments.get(task_id).expect("task judgment list exists");
+        let judgments = state
+            .judgments
+            .get(task_id)
+            .expect("task judgment list exists");
         if judgments.len() >= self.config.max_judgments_per_task {
             return Err(feedback_error(
                 "REVIEW_JUDGMENT_CAPACITY_REACHED",
@@ -261,7 +272,11 @@ impl FeedbackEngine {
             notes,
             submitted_at: SystemTime::now(),
         };
-        state.judgments.get_mut(task_id).expect("task judgment list exists").push(judgment.clone());
+        state
+            .judgments
+            .get_mut(task_id)
+            .expect("task judgment list exists")
+            .push(judgment.clone());
         refresh_task_status(&mut state, task_id)?;
         Ok(judgment)
     }
@@ -278,7 +293,10 @@ impl FeedbackEngine {
     ) -> Result<RelevanceJudgment, VrtCError> {
         self.validate_judgment(adjudicator_id, relevance, rubric_version, notes.as_deref())?;
         let mut state = self.lock_state()?;
-        let task = state.tasks.get(task_id).ok_or_else(|| task_not_found(task_id))?;
+        let task = state
+            .tasks
+            .get(task_id)
+            .ok_or_else(|| task_not_found(task_id))?;
         if task.rubric_version != rubric_version {
             return Err(feedback_error(
                 "RUBRIC_VERSION_MISMATCH",
@@ -286,14 +304,21 @@ impl FeedbackEngine {
                 ErrorCategory::Validation,
             ));
         }
-        if !task.candidates.iter().any(|candidate| candidate.document_id == document_id) {
+        if !task
+            .candidates
+            .iter()
+            .any(|candidate| candidate.document_id == document_id)
+        {
             return Err(feedback_error(
                 "DOCUMENT_NOT_IN_REVIEW_TASK",
                 "The document is not part of this review task",
                 ErrorCategory::Validation,
             ));
         }
-        let judgments = state.judgments.get(task_id).expect("task judgment list exists");
+        let judgments = state
+            .judgments
+            .get(task_id)
+            .expect("task judgment list exists");
         let labels = judgments
             .iter()
             .filter(|judgment| {
@@ -334,14 +359,22 @@ impl FeedbackEngine {
             notes,
             submitted_at: SystemTime::now(),
         };
-        state.judgments.get_mut(task_id).expect("task judgment list exists").push(judgment.clone());
+        state
+            .judgments
+            .get_mut(task_id)
+            .expect("task judgment list exists")
+            .push(judgment.clone());
         refresh_task_status(&mut state, task_id)?;
         Ok(judgment)
     }
 
     pub fn snapshot(&self, task_id: &str) -> Result<ReviewTaskSnapshot, VrtCError> {
         let state = self.lock_state()?;
-        let task = state.tasks.get(task_id).cloned().ok_or_else(|| task_not_found(task_id))?;
+        let task = state
+            .tasks
+            .get(task_id)
+            .cloned()
+            .ok_or_else(|| task_not_found(task_id))?;
         let judgments = state.judgments.get(task_id).cloned().unwrap_or_default();
         Ok(ReviewTaskSnapshot { task, judgments })
     }
@@ -440,7 +473,11 @@ impl FeedbackEngine {
 }
 
 fn refresh_task_status(state: &mut FeedbackState, task_id: &str) -> Result<(), VrtCError> {
-    let task = state.tasks.get(task_id).cloned().ok_or_else(|| task_not_found(task_id))?;
+    let task = state
+            .tasks
+            .get(task_id)
+            .cloned()
+            .ok_or_else(|| task_not_found(task_id))?;
     let judgments = state.judgments.get(task_id).cloned().unwrap_or_default();
     let mut complete = true;
     let mut needs_adjudication = false;
@@ -449,12 +486,14 @@ fn refresh_task_status(state: &mut FeedbackState, task_id: &str) -> Result<(), V
         let reviewer_labels = judgments
             .iter()
             .filter(|judgment| {
-                judgment.document_id == candidate.document_id && judgment.role == JudgmentRole::Reviewer
+                judgment.document_id == candidate.document_id
+                    && judgment.role == JudgmentRole::Reviewer
             })
             .map(|judgment| judgment.relevance)
             .collect::<Vec<_>>();
         let adjudicated = judgments.iter().any(|judgment| {
-            judgment.document_id == candidate.document_id && judgment.role == JudgmentRole::Adjudicator
+            judgment.document_id == candidate.document_id
+                && judgment.role == JudgmentRole::Adjudicator
         });
         if reviewer_labels.is_empty() && !adjudicated {
             complete = false;
@@ -518,11 +557,7 @@ fn aggregate_relevance(judgments: &[RelevanceJudgment]) -> BTreeMap<String, f64>
     output
 }
 
-fn calculate_ndcg(
-    ranked: &[String],
-    relevance: &BTreeMap<String, f64>,
-    cutoff: usize,
-) -> f64 {
+fn calculate_ndcg(ranked: &[String], relevance: &BTreeMap<String, f64>, cutoff: usize) -> f64 {
     let dcg = ranked
         .iter()
         .take(cutoff)
@@ -558,7 +593,10 @@ fn agreement_metrics(judgments: &[RelevanceJudgment]) -> (f64, usize) {
             .or_default()
             .push(judgment.relevance);
     }
-    let multi_rated = ratings.values().filter(|labels| labels.len() >= 2).collect::<Vec<_>>();
+    let multi_rated = ratings
+        .values()
+        .filter(|labels| labels.len() >= 2)
+        .collect::<Vec<_>>();
     if multi_rated.is_empty() {
         return (0.0, 0);
     }
@@ -638,7 +676,9 @@ mod tests {
             .submit_judgment(&second.id, "b", "reviewer-1", 2, "rubric-v1", None)
             .unwrap();
 
-        let pending = engine.list_tasks(Some(ReviewTaskStatus::Pending), 10).unwrap();
+        let pending = engine
+            .list_tasks(Some(ReviewTaskStatus::Pending), 10)
+            .unwrap();
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].id, first.id);
         let all = engine.list_tasks(None, 10).unwrap();
