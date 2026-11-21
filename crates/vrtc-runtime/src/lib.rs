@@ -122,7 +122,11 @@ impl VrtcRuntime {
         let registry = Arc::new(Registry::new());
         let search = Arc::new(SearchEngine::new(config.search)?);
         let frontier = Arc::new(FrontierEngine::new(config.frontier)?);
-        let fetcher = Arc::new(FetchEngine::new(config.fetch)?);
+        let network = Arc::new(NetworkEngine::new(config.network)?);
+        let fetcher = Arc::new(FetchEngine::with_network(
+            config.fetch,
+            Arc::clone(&network),
+        )?);
         let extraction = Arc::new(ExtractionEngine::new(config.extraction)?);
         let index = Arc::new(IndexEngine::new(config.index)?);
         let retrieval = Arc::new(RetrievalEngine::new(Arc::clone(&index), config.retrieval)?);
@@ -148,7 +152,6 @@ impl VrtcRuntime {
         let policy = Arc::new(PolicyEngine::new(config.policy)?);
         let archive = Arc::new(ArchiveEngine::new(config.archive)?);
         let browser = Arc::new(BrowserRenderer::new(config.browser, Arc::clone(&policy))?);
-        let network = Arc::new(NetworkEngine::new(config.network)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
