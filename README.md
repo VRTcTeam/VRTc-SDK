@@ -2,7 +2,7 @@
 
 **VRTc** is a provider-agnostic, polyglot **Multi-Engine Research & Retrieval SDK**.
 
-It is designed to coordinate search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
+It coordinates search, discovery, crawling, fetching, browser rendering, extraction, indexing, retrieval, evidence verification, and research workflows through one consistent SDK interface.
 
 > Project status: M1 contract and registry specification baseline. Runtime components are not yet implemented.
 
@@ -27,8 +27,6 @@ It is designed to coordinate search, discovery, crawling, fetching, browser rend
 
 ### Runtime architecture
 
-The initial architecture is organized into these layers:
-
 1. **Language SDKs** — idiomatic clients for supported languages.
 2. **API and protocol layer** — stable public interfaces and internal contracts.
 3. **VRTc Core Runtime (Rust)** — lifecycle, configuration, registry, and execution foundations.
@@ -46,7 +44,9 @@ VRTc uses a **hybrid registration model**:
 - **Dynamic registration:** trusted custom engines and provider adapters can be registered while the runtime is running.
 - **Unified catalog:** the planner and orchestrator discover capabilities through one registry interface.
 
-Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.\n\nThe M1 contract and registry baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md).
+Registration does not imply unrestricted native code loading. Dynamic components must pass validation and policy checks. Any future plugin execution model must enforce explicit permissions and isolation; WebAssembly may be evaluated as one plugin boundary.
+
+The M1 baseline is documented in [Core Contracts & Registry Specification](docs/specifications/m1-core-contracts-and-registry.md).
 
 ## Initial subsystem: Search Engine
 
@@ -63,13 +63,13 @@ Initial responsibilities:
 - filters such as language, date, and domain;
 - provenance retention and provider-level error isolation.
 
-The VRTc Search Engine is the system that coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
+The VRTc Search Engine coordinates search. A **provider adapter** translates a particular external or local search capability into VRTc's contract. **Metasearch** is the multi-source aggregation capability and remains conceptually distinct from an individual provider.
 
 External search services are optional adapters. The core SDK must not require a paid provider to exist.
 
 ## Core contracts
 
-The specification will define shared models before implementation, including:
+The specification covers shared models including:
 
 - `ResearchRequest`
 - `ResearchJob`
@@ -89,8 +89,6 @@ Contracts should carry stable identifiers, schema versions, timestamps where rel
 
 ## Protocol direction
 
-The current protocol direction is:
-
 - **REST + OpenAPI** for the public HTTP API and generated client support.
 - **Protobuf + gRPC** for typed internal service communication where needed.
 - **WASM Component Model + WIT** as a possible interface for isolated plugins.
@@ -99,15 +97,15 @@ These are architecture choices under specification, not claims that the protocol
 
 ## Language ecosystem
 
-The currently selected SDK ecosystem contains 19 entries:
+The selected SDK ecosystem contains 19 entries:
 
 Python, Elixir, Assembly, JavaScript, Java, Markdown, TypeScript, Rust, C#, Go, C++, Kotlin, SQL, Ruby, Lua, PHP, Dart, Julia, and Haxe.
 
-Not every entry is intended to implement every subsystem. Language clients and integrations will be prioritized according to practical use cases. Markdown and SQL are supporting interface/data languages rather than general-purpose SDK implementation targets.
+Not every entry is intended to implement every subsystem. Markdown and SQL are supporting interface/data languages rather than general-purpose SDK implementation targets.
 
 ## Planned subsystem landscape
 
-The long-term architecture currently identifies these 20 subsystem areas:
+The long-term architecture identifies these 20 subsystem areas:
 
 1. Crawler Engine
 2. Search Engine
@@ -134,19 +132,29 @@ This is a target architecture, not a statement that all subsystems are available
 
 ## Development roadmap
 
-| Milestone | Focus |
-|---|---|
-| M0 | Architecture and project specification |
-| M1 | Core contracts and registry specification | Specification baseline drafted |\n| M2 | Rust core foundation and registry implementation |
-| M2 | Rust core foundation and registry implementation |
-| M3 | First Search Engine implementation |
-| M4 | Initial public API and SDK client |
-| M5 | Additional language SDKs and provider adapters |
-| M6 | Additional research and retrieval subsystems |
-| M7 | Hardening, documentation, compatibility, and releases |
+| Milestone | Focus | Status |
+|---|---|---|
+| M0 | Architecture and project specification | Baseline established |
+| M1 | Core contracts and registry specification | Specification baseline drafted |
+| M2 | Rust core foundation and registry implementation | Planned |
+| M3 | First Search Engine implementation | Planned |
+| M4 | Initial public API and SDK client | Planned |
+| M5 | Additional language SDKs and provider adapters | Planned |
+| M6 | Additional research and retrieval subsystems | Planned |
+| M7 | Hardening, documentation, compatibility, and releases | Planned |
 
-## CI/CD\n\nGitHub Actions currently provides repository checks, conditional Rust workspace checks, CodeQL analysis for workflow code, dependency review, OpenSSF Scorecard reporting, Dependabot updates, and tag-triggered source releases. Rust formatting, Clippy, and test steps activate when a Cargo workspace exists. Until then, a green repository check is not evidence of a successful Rust build.\n\n## Security\n\nDo not commit credentials or local environment files. Use repository or environment secrets for CI credentials. See [SECURITY.md](SECURITY.md) for vulnerability reporting guidance.\n\n## Repository status
+## CI/CD
 
-This repository is at the initial specification stage. Features, APIs, and implementation details may evolve through documented design decisions and versioned contracts.
+GitHub Actions provides repository checks, conditional Rust workspace checks, CodeQL analysis for workflow code, dependency review, OpenSSF Scorecard reporting, Dependabot updates, and tag-triggered source releases.
+
+Rust formatting, Clippy, and test steps activate when a Cargo workspace exists. Until then, a green repository check is not evidence of a successful Rust build.
+
+## Security
+
+Do not commit credentials or local environment files. Use repository or environment secrets for CI credentials. See [SECURITY.md](SECURITY.md) for vulnerability reporting guidance.
+
+## Repository status
+
+VRTc is under active specification and foundation development. APIs and implementation details may evolve through documented design decisions and versioned contracts.
 
 No provider credentials are required to define or build the core contracts. Provider integrations should be configured explicitly by the operator.
