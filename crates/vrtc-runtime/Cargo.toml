@@ -18,6 +18,7 @@ vrtc-retrieval = { path = "../vrtc-retrieval" }
 vrtc-feedback = { path = "../vrtc-feedback" }
 vrtc-crawler = { path = "../vrtc-crawler" }
 vrtc-delta = { path = "../vrtc-delta" }
+vrtc-evidence = { path = "../vrtc-evidence" }
 vrtc-registry = { path = "../vrtc-registry" }
 vrtc-search = { path = "../vrtc-search" }
 
