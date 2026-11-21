@@ -112,6 +112,7 @@ pub struct CrawlRunReport {
     pub links_queued: usize,
     pub duplicate_links: usize,
     pub out_of_scope_links: usize,
+    pub links_rejected: usize,
     pub frontier: Option<FrontierStats>,
 }
 
@@ -250,6 +251,7 @@ impl CrawlerEngine {
                 continue;
             }
 
+            report.pages_fetched += 1;
             let html = String::from_utf8_lossy(&response.body);
             let extracted = match self
                 .extraction
@@ -287,7 +289,6 @@ impl CrawlerEngine {
                 continue;
             }
 
-            report.pages_fetched += 1;
             report.documents_indexed += 1;
             let source_host = origin_of(&response.final_url);
             for link in extracted.links.iter().take(self.config.max_links_per_page) {
@@ -301,9 +302,10 @@ impl CrawlerEngine {
                 let mut request = CrawlRequest::new(link.url.clone());
                 request.depth = lease.request.depth + 1;
                 request.discovered_from = Some(response.final_url.clone());
-                match self.frontier.enqueue(request)? {
-                    EnqueueOutcome::Queued => report.links_queued += 1,
-                    EnqueueOutcome::Duplicate => report.duplicate_links += 1,
+                match self.frontier.enqueue(request) {
+                    Ok(EnqueueOutcome::Queued) => report.links_queued += 1,
+                    Ok(EnqueueOutcome::Duplicate) => report.duplicate_links += 1,
+                    Err(_) => report.links_rejected += 1,
                 }
             }
             self.frontier.complete(&lease.id)?;
