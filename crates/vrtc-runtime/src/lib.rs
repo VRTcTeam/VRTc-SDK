@@ -18,6 +18,7 @@ use vrtc_fetcher::{FetchConfig, FetchEngine};
 use vrtc_frontier::{FrontierConfig, FrontierEngine};
 use vrtc_index::{IndexConfig, IndexEngine};
 use vrtc_queue::{JobQueueEngine, QueueConfig};
+use vrtc_research::{ResearchConfig, ResearchPlanner};
 use vrtc_registry::Registry;
 use vrtc_retrieval::{RetrievalConfig, RetrievalEngine};
 use vrtc_search::{SearchConfig, SearchEngine, SearchProvider};
@@ -49,6 +50,8 @@ const STORAGE_ENGINE_ID: &str = "engine.vrtc.storage";
 const STORAGE_CAPABILITY_ID: &str = "storage.kv";
 const QUEUE_ENGINE_ID: &str = "engine.vrtc.queue";
 const QUEUE_CAPABILITY_ID: &str = "queue.jobs";
+const RESEARCH_ENGINE_ID: &str = "engine.vrtc.research";
+const RESEARCH_CAPABILITY_ID: &str = "research.plan";
 
 /// Configuration for the engines owned by the VRTc runtime.
 #[derive(Debug, Clone, Default)]
@@ -66,6 +69,7 @@ pub struct RuntimeConfig {
     pub storage: StorageConfig,
     pub storage_path: Option<PathBuf>,
     pub queue: QueueConfig,
+    pub research: ResearchConfig,
 }
 
 /// Main VRTc runtime façade. The initial runtime is modular and in-process.
@@ -83,6 +87,7 @@ pub struct VrtcRuntime {
     evidence: Arc<EvidenceEngine>,
     storage: Arc<StorageEngine>,
     queue: Arc<JobQueueEngine>,
+    research: Arc<ResearchPlanner>,
     registration_lock: Mutex<()>,
 }
 
@@ -113,6 +118,7 @@ impl VrtcRuntime {
             .as_millis()
             .min(u64::MAX as u128) as u64;
         queue.recover_expired(now_ms)?;
+        let research = Arc::new(ResearchPlanner::new(config.research)?);
         let crawler = Arc::new(CrawlerEngine::new(
             config.crawler,
             Arc::clone(&frontier),
@@ -147,6 +153,8 @@ impl VrtcRuntime {
         registry.activate_engine(STORAGE_ENGINE_ID)?;
         registry.register_static_engine(queue_engine_descriptor())?;
         registry.activate_engine(QUEUE_ENGINE_ID)?;
+        registry.register_static_engine(research_engine_descriptor())?;
+        registry.activate_engine(RESEARCH_ENGINE_ID)?;
 
         Ok(Self {
             registry,
@@ -162,6 +170,7 @@ impl VrtcRuntime {
             evidence,
             storage,
             queue,
+            research,
             registration_lock: Mutex::new(()),
         })
     }
@@ -324,6 +333,12 @@ impl VrtcRuntime {
     #[must_use]
     pub fn queue_engine(&self) -> Arc<JobQueueEngine> {
         Arc::clone(&self.queue)
+    }
+
+    /// Shared deterministic research planner; execution is handled separately.
+    #[must_use]
+    pub fn research_planner(&self) -> Arc<ResearchPlanner> {
+        Arc::clone(&self.research)
     }
 
     /// Execute a search through the runtime-owned Search Engine.
@@ -731,6 +746,31 @@ fn queue_engine_descriptor() -> EngineDescriptor {
     }
 }
 
+fn research_engine_descriptor() -> EngineDescriptor {
+    EngineDescriptor {
+        id: RESEARCH_ENGINE_ID.to_owned(),
+        name: "VRTc Native Research Planner & Orchestration".to_owned(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        contract_version: "1".to_owned(),
+        kind: "research-orchestrator".to_owned(),
+        capabilities: vec![Capability {
+            id: RESEARCH_CAPABILITY_ID.to_owned(),
+            operations: vec!["plan".to_owned(), "validate_graph".to_owned(), "topological_order".to_owned()],
+            input_contract_version: "1".to_owned(),
+            output_contract_version: "1".to_owned(),
+            constraints: BTreeMap::from([
+                ("execution".to_owned(), "planning-only".to_owned()),
+                ("graph".to_owned(), "bounded-dag".to_owned()),
+                ("parallelism".to_owned(), "dependency-groups".to_owned()),
+            ]),
+            availability: CapabilityAvailability::Available,
+        }],
+        lifecycle_state: LifecycleState::Discovered,
+        registration_source: RegistrationSource::Static,
+        metadata: BTreeMap::new(),
+    }
+}
+
 fn internal_error(code: &str, message: &str) -> VrtCError {
     VrtCError::new(code, message, ErrorCategory::Internal, true)
 }
@@ -785,6 +825,15 @@ mod tests {
             registration_source: RegistrationSource::Dynamic,
             metadata: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn built_in_research_planner_is_registered_and_ready() {
+        let runtime = VrtcRuntime::new(RuntimeConfig::default()).unwrap();
+        let engine = runtime.registry().engine(RESEARCH_ENGINE_ID).unwrap();
+        assert_eq!(engine.lifecycle_state, LifecycleState::Ready);
+        assert_eq!(engine.kind, "research-orchestrator");
+        assert_eq!(engine.capabilities[0].id, RESEARCH_CAPABILITY_ID);
     }
 
     #[test]
