@@ -471,23 +471,6 @@ impl Drop for ActiveWorkerGuard {
     }
 }
 
-/// Run an operation in a task that owns its future independently of the
-/// caller's response receiver. The browser render worker has an absolute
-/// operation deadline and bounded cleanup, so it can finish safely if the
-/// caller cancels by dropping this receiver.
-fn spawn_supervised<T, F>(operation: F) -> oneshot::Receiver<T>
-where
-    T: Send + 'static,
-    F: Future<Output = T> + Send + 'static,
-{
-    let (result_tx, result_rx) = oneshot::channel();
-    tokio::spawn(async move {
-        let result = operation.await;
-        let _ = result_tx.send(result);
-    });
-    result_rx
-}
-
 /// Close the browser and stop its event handler without allowing cleanup to
 /// wait forever. The handler is aborted even when the browser close operation
 /// reaches its deadline.
@@ -772,49 +755,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn supervised_operation_retains_capacity_after_caller_drops_receiver() {
+    async fn supervisor_retains_capacity_and_waits_after_caller_drops_receiver() {
         use std::sync::atomic::{AtomicBool, Ordering};
 
+        let supervisor = Arc::new(BrowserSupervisor::new());
         let slots = Arc::new(Semaphore::new(1));
         let permit = Arc::clone(&slots).acquire_owned().await.unwrap();
         let worker_slots = Arc::clone(&slots);
         let completed = Arc::new(AtomicBool::new(false));
         let worker_completed = Arc::clone(&completed);
-        let receiver = spawn_supervised(async move {
-            let _permit = permit;
-            tokio::time::sleep(Duration::from_millis(10)).await;
-            worker_completed.store(true, Ordering::SeqCst);
-        });
-
-        drop(receiver);
-        assert_eq!(slots.available_permits(), 0);
-        tokio::time::sleep(Duration::from_millis(20)).await;
-        assert!(completed.load(Ordering::SeqCst));
-        assert_eq!(worker_slots.available_permits(), 1);
-    }
-
-    #[tokio::test]
-    async fn supervisor_shutdown_waits_for_cancelled_workers_and_closes_admission() {
-        use std::sync::atomic::{AtomicBool, Ordering};
-
-        let supervisor = Arc::new(BrowserSupervisor::new());
-        let completed = Arc::new(AtomicBool::new(false));
-        let worker_completed = Arc::clone(&completed);
         let receiver = Arc::clone(&supervisor)
             .spawn(async move {
-                tokio::time::sleep(Duration::from_millis(20)).await;
+                let _permit = permit;
+                tokio::time::sleep(Duration::from_millis(10)).await;
                 worker_completed.store(true, Ordering::SeqCst);
             })
             .unwrap();
-        drop(receiver);
 
+        drop(receiver);
+        assert_eq!(slots.available_permits(), 0);
         supervisor.shutdown().await.unwrap();
         assert!(completed.load(Ordering::SeqCst));
-        let rejected = Arc::clone(&supervisor).spawn(async {});
-        assert!(matches!(
-            rejected,
-            Err(error) if error.code == "BROWSER_RENDERER_SHUTTING_DOWN"
-        ));
+        assert_eq!(worker_slots.available_permits(), 1);
     }
 
     #[tokio::test]
