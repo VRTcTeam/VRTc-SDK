@@ -77,7 +77,7 @@ The runtime now statically registers a VRTc-owned URL Frontier Engine. It provid
 
 ## Native HTTP Fetcher
 
-The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
+The runtime also statically registers a VRTc-owned HTTP Fetcher. It supports public HTTP(S) destinations, DNS address checks and pinning, manual redirect revalidation, HTTPS downgrade blocking, enforced Network Engine minimum TLS versions, bounded time/body size, and response provenance. It is deliberately separate from URL scheduling, browser rendering, and extraction. See [M7 Native HTTP Fetcher Specification](docs/specifications/m7-native-http-fetcher.md).
 
 ## Native Browser & Rendering Engine
 
@@ -286,3 +286,8 @@ Browser shutdown now follows graceful close with explicit child-process wait/rea
 The browser renderer now exposes an explicit asynchronous shutdown operation. It atomically closes render admission and waits for all already-admitted supervisor workers, including work whose original caller cancelled. The runtime façade exposes this as `shutdown_browser()`; hosts should await it before shutting down their Tokio runtime. Shutdown is idempotent and permanently closes that renderer instance. It does not shut down unrelated runtime engines or guarantee cleanup after abrupt process termination.
 
 - [M32 Browser Supervisor Shutdown Specification](docs/specifications/m32-browser-supervisor-shutdown.md)
+
+
+## Fetcher TLS Minimum Enforcement (M33)
+
+The HTTP Fetcher now applies the shared Network Engine's minimum TLS version to each reqwest client it creates. TLS 1.2 and TLS 1.3 policy values are mapped to reqwest's rustls-backed connector configuration; certificate and hostname verification remain enabled. The policy is rebuilt for every redirect hop. This does not add proxy transport or change the existing public-address DNS pinning boundary. See [M33 Fetcher TLS Minimum Enforcement](docs/specifications/m33-fetcher-tls-minimum-enforcement.md).
