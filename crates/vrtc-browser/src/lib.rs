@@ -144,12 +144,12 @@ impl BrowserRenderer {
             })?
             .await
             .map_err(|_| {
-            browser_error(
-                "BROWSER_RENDER_SUPERVISOR_FAILED",
-                "The supervised browser render task ended without returning a result",
-                ErrorCategory::Internal,
-            )
-        })?
+                browser_error(
+                    "BROWSER_RENDER_SUPERVISOR_FAILED",
+                    "The supervised browser render task ended without returning a result",
+                    ErrorCategory::Internal,
+                )
+            })?
     }
 
     fn validate_request(&self, request: &BrowserRenderRequest) -> Result<String, VrtCError> {
@@ -458,10 +458,12 @@ impl BrowserSupervisor {
     }
 
     fn worker_finished(&self) {
-        if let Ok(mut state) = self.state.lock() {
-            state.active = state.active.saturating_sub(1);
-            self.active_tx.send_replace(state.active);
-        }
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state.active = state.active.saturating_sub(1);
+        self.active_tx.send_replace(state.active);
     }
 }
 
