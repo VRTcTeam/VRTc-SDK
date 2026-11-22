@@ -274,3 +274,9 @@ Browser rendering now shares one operation deadline across render-capacity admis
 Browser rendering now acquires a render-capacity permit before spawning an owned Tokio task, keeping queued requests out of the detached-task pool. The worker returns results through a oneshot channel; if the caller cancels by dropping its render future, the worker retains ownership of the browser lifecycle, render-capacity permit, M29 operation deadline, and M28 bounded cleanup path. This prevents ordinary caller cancellation from bypassing cleanup. It does not guarantee cleanup after runtime shutdown or process termination, and it does not replace operating-system child-process reaping.
 
 - [M30 Browser Cancellation Supervision Specification](docs/specifications/m30-browser-cancellation-supervision.md)
+
+## Chromium Child-Process Reaping (M31)
+
+Browser shutdown now follows graceful close with explicit child-process wait/reaping. If a launched Chromium process does not exit within the cleanup interval, VRTc uses chromiumoxide's documented forced-kill-and-wait API under a separate bounded interval. Event-handler shutdown is still attempted when process cleanup fails. Externally connected browsers are not terminated because VRTc does not own their child process.
+
+- [M31 Chromium Child-Process Lifecycle & Reaping Specification](docs/specifications/m31-chromium-process-reaping.md)
