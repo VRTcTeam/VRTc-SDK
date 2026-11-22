@@ -106,10 +106,7 @@ impl BrowserRenderer {
             })?
     }
 
-    async fn render_inner(
-        &self,
-        request: BrowserRenderRequest,
-    ) -> Result<RenderedPage, VrtCError> {
+    async fn render_inner(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
         if request.html.len() > self.config.max_html_bytes {
             return Err(browser_error(
                 "BROWSER_INPUT_TOO_LARGE",
