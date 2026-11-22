@@ -180,6 +180,7 @@ impl BrowserRenderer {
     ) -> Result<RenderedPage, VrtCError> {
         // The caller admitted this request before spawning. Holding the owned
         // permit here bounds both active browser work and detached supervisors.
+        let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
 
         let started = Instant::now();
         let browser_config = match self.config.chrome_executable.as_ref() {
