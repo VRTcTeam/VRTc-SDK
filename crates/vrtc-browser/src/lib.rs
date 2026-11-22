@@ -136,13 +136,14 @@ impl BrowserRenderer {
             render_slots: Arc::clone(&self.render_slots),
             supervisor: Arc::clone(&self.supervisor),
         };
-        Arc::clone(&self.supervisor).spawn(async move {
-            worker
-                .render_inner(request, source_url, deadline, render_permit)
-                .await
-        })
-        .await
-        .map_err(|_| {
+        Arc::clone(&self.supervisor)
+            .spawn(async move {
+                worker
+                    .render_inner(request, source_url, deadline, render_permit)
+                    .await
+            })?
+            .await
+            .map_err(|_| {
             browser_error(
                 "BROWSER_RENDER_SUPERVISOR_FAILED",
                 "The supervised browser render task ended without returning a result",
