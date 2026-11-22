@@ -15,7 +15,7 @@ use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::emulation::SetScriptExecutionDisabledParams;
 use futures::StreamExt;
 use tokio::sync::Semaphore;
-use tokio::time::timeout;
+use tokio::time::{timeout, timeout_at};
 use vrtc_core::{ErrorCategory, VrtCError};
 use vrtc_policy::{PolicyEngine, PolicyOutcome, PolicyRequest};
 
@@ -118,8 +118,15 @@ impl BrowserRenderer {
             )
         })?;
 
+        // One deadline covers queue admission, launch, page creation, and rendering.
+        // Cleanup receives its own bounded grace period so deadline expiry cannot
+        // skip the browser shutdown attempt.
+        let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
+        let deadline = tokio::time::Instant::now() + operation_timeout;
+        let queue_timeout = Duration::from_millis(self.config.max_queue_wait_ms)
+            .min(deadline.saturating_duration_since(tokio::time::Instant::now()));
         let _render_permit = timeout(
-            Duration::from_millis(self.config.max_queue_wait_ms),
+            queue_timeout,
             Arc::clone(&self.render_slots).acquire_owned(),
         )
         .await
@@ -153,24 +160,22 @@ impl BrowserRenderer {
             )
         })?;
 
-        let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
-        let (mut browser, mut handler) =
-            timeout(operation_timeout, Browser::launch(browser_config))
-                .await
-                .map_err(|_| {
-                    browser_error(
-                        "BROWSER_LAUNCH_TIMEOUT",
-                        "Browser launch exceeded the configured timeout",
-                        ErrorCategory::ResourceExhausted,
-                    )
-                })?
-                .map_err(|error| {
-                    browser_error(
-                        "BROWSER_LAUNCH_FAILED",
-                        &error.to_string(),
-                        ErrorCategory::Internal,
-                    )
-                })?;
+        let (mut browser, mut handler) = timeout_at(deadline, Browser::launch(browser_config))
+            .await
+            .map_err(|_| {
+                browser_error(
+                    "BROWSER_LAUNCH_TIMEOUT",
+                    "Browser launch exceeded the configured timeout",
+                    ErrorCategory::ResourceExhausted,
+                )
+            })?
+            .map_err(|error| {
+                browser_error(
+                    "BROWSER_LAUNCH_FAILED",
+                    &error.to_string(),
+                    ErrorCategory::Internal,
+                )
+            })?;
 
         let mut handler_task = tokio::spawn(async move {
             while let Some(event) = handler.next().await {
@@ -180,7 +185,7 @@ impl BrowserRenderer {
             }
         });
 
-        let page_result = timeout(operation_timeout, browser.new_page("about:blank")).await;
+        let page_result = timeout_at(deadline, browser.new_page("about:blank")).await;
         let page = match page_result {
             Ok(Ok(page)) => page,
             Ok(Err(error)) => {
@@ -203,8 +208,8 @@ impl BrowserRenderer {
 
         let offline_html = apply_offline_csp(&request.html);
         let render_result = async {
-            timeout(
-                operation_timeout,
+            timeout_at(
+                deadline,
                 page.execute(SetScriptExecutionDisabledParams::new(true)),
             )
             .await
@@ -223,7 +228,7 @@ impl BrowserRenderer {
                 )
             })?;
 
-            timeout(operation_timeout, page.set_content(offline_html))
+            timeout_at(deadline, page.set_content(offline_html))
                 .await
                 .map_err(|_| {
                     browser_error(
@@ -240,7 +245,7 @@ impl BrowserRenderer {
                     )
                 })?;
 
-            let html = timeout(operation_timeout, page.content())
+            let html = timeout_at(deadline, page.content())
                 .await
                 .map_err(|_| {
                     browser_error(
@@ -265,7 +270,7 @@ impl BrowserRenderer {
                 ));
             }
 
-            let title = timeout(operation_timeout, page.get_title())
+            let title = timeout_at(deadline, page.get_title())
                 .await
                 .ok()
                 .and_then(Result::ok)
