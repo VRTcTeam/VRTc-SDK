@@ -417,6 +417,14 @@ impl VrtcRuntime {
         Arc::clone(&self.browser)
     }
 
+    /// Stop new browser renders and await all admitted browser workers.
+    ///
+    /// Call and await this before shutting down the host Tokio runtime. Other
+    /// runtime engines remain available; this method coordinates browser workers only.
+    pub async fn shutdown_browser(&self) -> Result<(), VrtCError> {
+        self.browser.shutdown().await
+    }
+
     /// Registry of trusted in-process browser backends.
     #[must_use]
     pub fn browser_engine_registry(&self) -> Arc<BrowserEngineRegistry> {
