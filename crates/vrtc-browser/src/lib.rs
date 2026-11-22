@@ -172,7 +172,7 @@ impl BrowserRenderer {
                     )
                 })?;
 
-        let handler_task = tokio::spawn(async move {
+        let mut handler_task = tokio::spawn(async move {
             while let Some(event) = handler.next().await {
                 if event.is_err() {
                     break;
@@ -184,8 +184,7 @@ impl BrowserRenderer {
         let page = match page_result {
             Ok(Ok(page)) => page,
             Ok(Err(error)) => {
-                let _ = browser.close().await;
-                handler_task.abort();
+                let _ = shutdown_browser(&mut browser, &mut handler_task, operation_timeout).await;
                 return Err(browser_error(
                     "BROWSER_PAGE_CREATE_FAILED",
                     &error.to_string(),
@@ -193,8 +192,7 @@ impl BrowserRenderer {
                 ));
             }
             Err(_) => {
-                let _ = browser.close().await;
-                handler_task.abort();
+                let _ = shutdown_browser(&mut browser, &mut handler_task, operation_timeout).await;
                 return Err(browser_error(
                     "BROWSER_PAGE_TIMEOUT",
                     "Creating the isolated browser page exceeded the configured timeout",
@@ -283,9 +281,52 @@ impl BrowserRenderer {
         }
         .await;
 
-        let _ = browser.close().await;
-        let _ = handler_task.await;
-        render_result
+        let cleanup_result =
+            shutdown_browser(&mut browser, &mut handler_task, operation_timeout).await;
+        match (render_result, cleanup_result) {
+            (Err(render_error), _) => Err(render_error),
+            (Ok(_), Err(cleanup_error)) => Err(cleanup_error),
+            (Ok(page), Ok(())) => Ok(page),
+        }
+    }
+}
+
+/// Close the browser and stop its event handler without allowing cleanup to
+/// wait forever. The handler is aborted even when the browser close operation
+/// reaches its deadline.
+async fn stop_browser_handler(
+    handler_task: &mut tokio::task::JoinHandle<()>,
+    cleanup_timeout: Duration,
+) -> bool {
+    handler_task.abort();
+    timeout(cleanup_timeout, &mut *handler_task).await.is_ok()
+}
+
+async fn shutdown_browser(
+    browser: &mut Browser,
+    handler_task: &mut tokio::task::JoinHandle<()>,
+    cleanup_timeout: Duration,
+) -> Result<(), VrtCError> {
+    let close_result = timeout(cleanup_timeout, browser.close()).await;
+    let handler_stopped = stop_browser_handler(handler_task, cleanup_timeout).await;
+
+    match close_result {
+        Err(_) => Err(browser_error(
+            "BROWSER_CLEANUP_TIMEOUT",
+            "Closing the browser exceeded the configured cleanup timeout",
+            ErrorCategory::ResourceExhausted,
+        )),
+        Ok(Err(error)) => Err(browser_error(
+            "BROWSER_CLEANUP_FAILED",
+            &error.to_string(),
+            ErrorCategory::Internal,
+        )),
+        Ok(Ok(_)) if !handler_stopped => Err(browser_error(
+            "BROWSER_HANDLER_STOP_TIMEOUT",
+            "Browser event handler did not stop within the configured cleanup timeout",
+            ErrorCategory::ResourceExhausted,
+        )),
+        Ok(Ok(_)) => Ok(()),
     }
 }
 
@@ -478,6 +519,14 @@ mod tests {
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn shutdown_aborts_a_stalled_browser_handler() {
+        let mut handler = tokio::spawn(async {
+            std::future::pending::<()>().await;
+        });
+        assert!(stop_browser_handler(&mut handler, Duration::from_millis(100)).await);
     }
 
     #[test]

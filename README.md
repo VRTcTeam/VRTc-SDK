@@ -254,3 +254,10 @@ The browser crate now exposes a backend-neutral `BrowserEngine` contract, explic
 Browser rendering now has a per-renderer concurrency limit and bounded queue wait. The default is two simultaneous render operations with a five-second capacity wait. Requests rejected by input validation or URL policy do not consume a render slot. This is an in-process admission limit, not a distributed quota or browser process pool.
 
 - [M27 Browser Render Capacity Specification](docs/specifications/m27-browser-render-capacity.md)
+
+
+## Browser Cleanup Deadlines (M28)
+
+Browser renderer shutdown is now bounded by the configured per-operation timeout. Browser close failures and timeouts return stable structured errors on otherwise successful renders, while the event-handler task is explicitly aborted and awaited within a bounded interval. Render failures retain precedence over cleanup failures so the primary operation error is not masked.
+
+- [M28 Browser Cleanup Deadlines Specification](docs/specifications/m28-browser-cleanup-deadlines.md)
