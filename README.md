@@ -261,3 +261,10 @@ Browser rendering now has a per-renderer concurrency limit and bounded queue wai
 Browser renderer shutdown is now bounded by the configured per-operation timeout. Browser close failures and timeouts return stable structured errors on otherwise successful renders, while the event-handler task is explicitly aborted and awaited within a bounded interval. Render failures retain precedence over cleanup failures so the primary operation error is not masked.
 
 - [M28 Browser Cleanup Deadlines Specification](docs/specifications/m28-browser-cleanup-deadlines.md)
+
+
+## Browser Render Operation Deadline (M29)
+
+Browser rendering now shares one operation deadline across render-capacity admission, Chromium launch, page creation, JavaScript policy application, snapshot rendering, DOM extraction, and title retrieval. The configured `operation_timeout_ms` is a total active-operation budget rather than a fresh timeout granted to every stage. Browser shutdown still receives a separate bounded cleanup grace period after success or failure, so cleanup is attempted even when the operation deadline expires.
+
+- [M29 Browser Render Operation Deadline Specification](docs/specifications/m29-browser-operation-deadline.md)
