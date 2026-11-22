@@ -294,14 +294,21 @@ impl BrowserRenderer {
 /// Close the browser and stop its event handler without allowing cleanup to
 /// wait forever. The handler is aborted even when the browser close operation
 /// reaches its deadline.
+async fn stop_browser_handler(
+    handler_task: &mut tokio::task::JoinHandle<()>,
+    cleanup_timeout: Duration,
+) -> bool {
+    handler_task.abort();
+    timeout(cleanup_timeout, &mut *handler_task).await.is_ok()
+}
+
 async fn shutdown_browser(
     browser: &mut Browser,
     handler_task: &mut tokio::task::JoinHandle<()>,
     cleanup_timeout: Duration,
 ) -> Result<(), VrtCError> {
     let close_result = timeout(cleanup_timeout, browser.close()).await;
-    handler_task.abort();
-    let handler_stopped = timeout(cleanup_timeout, &mut *handler_task).await.is_ok();
+    let handler_stopped = stop_browser_handler(handler_task, cleanup_timeout).await;
 
     match close_result {
         Err(_) => Err(browser_error(
@@ -519,12 +526,7 @@ mod tests {
         let mut handler = tokio::spawn(async {
             std::future::pending::<()>().await;
         });
-        let stopped = timeout(Duration::from_millis(100), async {
-            handler.abort();
-            (&mut handler).await
-        })
-        .await;
-        assert!(stopped.is_ok());
+        assert!(stop_browser_handler(&mut handler, Duration::from_millis(100)).await);
     }
 
     #[test]
