@@ -321,12 +321,12 @@ async fn shutdown_browser(
             &error.to_string(),
             ErrorCategory::Internal,
         )),
-        Ok(Ok(())) if !handler_stopped => Err(browser_error(
+        Ok(Ok(_)) if !handler_stopped => Err(browser_error(
             "BROWSER_HANDLER_STOP_TIMEOUT",
             "Browser event handler did not stop within the configured cleanup timeout",
             ErrorCategory::ResourceExhausted,
         )),
-        Ok(Ok(())) => Ok(()),
+        Ok(Ok(_)) => Ok(()),
     }
 }
 
