@@ -124,7 +124,7 @@ impl BrowserRenderer {
         let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
         let deadline = tokio::time::Instant::now() + operation_timeout;
         let queue_timeout = Duration::from_millis(self.config.max_queue_wait_ms)
-            .min(operation_timeout);
+            .min(deadline.saturating_duration_since(tokio::time::Instant::now()));
         let _render_permit = timeout(
             queue_timeout,
             Arc::clone(&self.render_slots).acquire_owned(),
