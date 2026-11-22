@@ -172,7 +172,7 @@ impl BrowserRenderer {
                     )
                 })?;
 
-        let handler_task = tokio::spawn(async move {
+        let mut handler_task = tokio::spawn(async move {
             while let Some(event) = handler.next().await {
                 if event.is_err() {
                     break;
