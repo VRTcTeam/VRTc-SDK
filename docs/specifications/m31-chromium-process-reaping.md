@@ -6,7 +6,7 @@ Close the process-ownership gap left by M28–M30. A browser render must not rep
 
 ## Verified dependency contract
 
-The pinned direct dependency is `chromiumoxide = 0.9.1`. Its `Browser` API exposes:
+The browser crate declares the direct dependency requirement `chromiumoxide = 0.9.1`. Its `Browser` API exposes:
 - `close()` for graceful browser shutdown;
 - `wait()` to collect the spawned child process exit status;
 - `kill()` to forcibly terminate the spawned child and wait for its exit;
