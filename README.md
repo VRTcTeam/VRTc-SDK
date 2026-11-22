@@ -280,3 +280,9 @@ Browser rendering now acquires a render-capacity permit before spawning an owned
 Browser shutdown now follows graceful close with explicit child-process wait/reaping. If a launched Chromium process does not exit within the cleanup interval, VRTc uses chromiumoxide's documented forced-kill-and-wait API under a separate bounded interval. Event-handler shutdown is still attempted when process cleanup fails. Externally connected browsers are not terminated because VRTc does not own their child process.
 
 - [M31 Chromium Child-Process Lifecycle & Reaping Specification](docs/specifications/m31-chromium-process-reaping.md)
+
+## Browser Supervisor Shutdown Coordination (M32)
+
+The browser renderer now exposes an explicit asynchronous shutdown operation. It atomically closes render admission and waits for all already-admitted supervisor workers, including work whose original caller cancelled. The runtime façade exposes this as `shutdown_browser()`; hosts should await it before shutting down their Tokio runtime. Shutdown is idempotent and permanently closes that renderer instance. It does not shut down unrelated runtime engines or guarantee cleanup after abrupt process termination.
+
+- [M32 Browser Supervisor Shutdown Specification](docs/specifications/m32-browser-supervisor-shutdown.md)
