@@ -810,8 +810,10 @@ mod tests {
         supervisor.shutdown().await.unwrap();
         assert!(completed.load(Ordering::SeqCst));
         let rejected = Arc::clone(&supervisor).spawn(async {});
-        assert!(rejected.is_err());
-        assert_eq!(rejected.unwrap_err().to_string().is_empty(), false);
+        assert!(matches!(
+            rejected,
+            Err(error) if error.code == "BROWSER_RENDERER_SHUTTING_DOWN"
+        ));
     }
 
     #[tokio::test]
