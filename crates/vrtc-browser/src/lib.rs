@@ -87,26 +87,59 @@ impl BrowserRenderer {
         })
     }
 
-    /// Render in an owned task so dropping the caller future cannot drop the
-    /// browser lifecycle before its bounded cleanup path runs.
+    /// Admit work before spawning so queued requests do not create an
+    /// unbounded number of detached Tokio tasks.
     pub async fn render(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
+        let source_url = self.validate_request(&request)?;
+
+        // One deadline covers queue admission, launch, page creation, and rendering.
+        // The permit is acquired by the caller before spawning, so the number of
+        // supervised workers can never exceed configured render concurrency.
+        let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
+        let deadline = tokio::time::Instant::now() + operation_timeout;
+        let queue_timeout = Duration::from_millis(self.config.max_queue_wait_ms)
+            .min(deadline.saturating_duration_since(tokio::time::Instant::now()));
+        let render_permit = timeout(
+            queue_timeout,
+            Arc::clone(&self.render_slots).acquire_owned(),
+        )
+        .await
+        .map_err(|_| {
+            browser_error(
+                "BROWSER_RENDER_CAPACITY_TIMEOUT",
+                "Browser render capacity was unavailable before the queue wait limit",
+                ErrorCategory::ResourceExhausted,
+            )
+        })?
+        .map_err(|_| {
+            browser_error(
+                "BROWSER_RENDER_CAPACITY_CLOSED",
+                "Browser render capacity is unavailable",
+                ErrorCategory::Internal,
+            )
+        })?;
+
         let worker = Self {
             config: self.config.clone(),
             policy: Arc::clone(&self.policy),
             render_slots: Arc::clone(&self.render_slots),
         };
-        spawn_supervised(async move { worker.render_inner(request).await })
-            .await
-            .map_err(|_| {
-                browser_error(
-                    "BROWSER_RENDER_SUPERVISOR_FAILED",
-                    "The supervised browser render task ended without returning a result",
-                    ErrorCategory::Internal,
-                )
-            })?
+        spawn_supervised(async move {
+            worker
+                .render_inner(request, source_url, deadline, render_permit)
+                .await
+        })
+        .await
+        .map_err(|_| {
+            browser_error(
+                "BROWSER_RENDER_SUPERVISOR_FAILED",
+                "The supervised browser render task ended without returning a result",
+                ErrorCategory::Internal,
+            )
+        })?
     }
 
-    async fn render_inner(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
+    fn validate_request(&self, request: &BrowserRenderRequest) -> Result<String, VrtCError> {
         if request.html.len() > self.config.max_html_bytes {
             return Err(browser_error(
                 "BROWSER_INPUT_TOO_LARGE",
@@ -129,40 +162,24 @@ impl BrowserRenderer {
                 ErrorCategory::Validation,
             ));
         }
-        let source_url = policy.normalized_url.ok_or_else(|| {
+        policy.normalized_url.ok_or_else(|| {
             browser_error(
                 "BROWSER_POLICY_RESULT_INVALID",
                 "Allowed policy result did not include a normalized source URL",
                 ErrorCategory::Internal,
             )
-        })?;
+        })
+    }
 
-        // One deadline covers queue admission, launch, page creation, and rendering.
-        // Cleanup receives its own bounded grace period so deadline expiry cannot
-        // skip the browser shutdown attempt.
-        let operation_timeout = Duration::from_millis(self.config.operation_timeout_ms);
-        let deadline = tokio::time::Instant::now() + operation_timeout;
-        let queue_timeout = Duration::from_millis(self.config.max_queue_wait_ms)
-            .min(deadline.saturating_duration_since(tokio::time::Instant::now()));
-        let _render_permit = timeout(
-            queue_timeout,
-            Arc::clone(&self.render_slots).acquire_owned(),
-        )
-        .await
-        .map_err(|_| {
-            browser_error(
-                "BROWSER_RENDER_CAPACITY_TIMEOUT",
-                "Browser render capacity was unavailable before the queue wait limit",
-                ErrorCategory::ResourceExhausted,
-            )
-        })?
-        .map_err(|_| {
-            browser_error(
-                "BROWSER_RENDER_CAPACITY_CLOSED",
-                "Browser render capacity is unavailable",
-                ErrorCategory::Internal,
-            )
-        })?;
+    async fn render_inner(
+        &self,
+        request: BrowserRenderRequest,
+        source_url: String,
+        deadline: tokio::time::Instant,
+        _render_permit: tokio::sync::OwnedSemaphorePermit,
+    ) -> Result<RenderedPage, VrtCError> {
+        // The caller admitted this request before spawning. Holding the owned
+        // permit here bounds both active browser work and detached supervisors.
 
         let started = Instant::now();
         let browser_config = match self.config.chrome_executable.as_ref() {
@@ -563,19 +580,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn supervised_operation_finishes_after_caller_drops_receiver() {
+    async fn supervised_operation_retains_capacity_after_caller_drops_receiver() {
         use std::sync::atomic::{AtomicBool, Ordering};
 
+        let slots = Arc::new(Semaphore::new(1));
+        let permit = Arc::clone(&slots).acquire_owned().await.unwrap();
+        let worker_slots = Arc::clone(&slots);
         let completed = Arc::new(AtomicBool::new(false));
         let worker_completed = Arc::clone(&completed);
         let receiver = spawn_supervised(async move {
+            let _permit = permit;
             tokio::time::sleep(Duration::from_millis(10)).await;
             worker_completed.store(true, Ordering::SeqCst);
         });
 
         drop(receiver);
+        assert_eq!(slots.available_permits(), 0);
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert!(completed.load(Ordering::SeqCst));
+        assert_eq!(worker_slots.available_permits(), 1);
     }
 
     #[tokio::test]
