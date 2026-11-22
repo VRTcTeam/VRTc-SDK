@@ -361,31 +361,84 @@ async fn stop_browser_handler(
     timeout(cleanup_timeout, &mut *handler_task).await.is_ok()
 }
 
+async fn reap_browser_process(
+    browser: &mut Browser,
+    cleanup_timeout: Duration,
+) -> Result<bool, VrtCError> {
+    match timeout(cleanup_timeout, browser.wait()).await {
+        Ok(Ok(Some(_))) => Ok(false),
+        Ok(Ok(None)) => Ok(false),
+        Ok(Err(error)) => {
+            match timeout(cleanup_timeout, browser.kill()).await {
+                Ok(Some(Ok(()))) => Ok(true),
+                Ok(Some(Err(kill_error))) => Err(browser_error(
+                    "BROWSER_PROCESS_KILL_FAILED",
+                    &format!("Waiting for Chromium failed ({error}); forced termination also failed ({kill_error})"),
+                    ErrorCategory::Internal,
+                )),
+                Ok(None) => Err(browser_error(
+                    "BROWSER_PROCESS_WAIT_FAILED",
+                    &error.to_string(),
+                    ErrorCategory::Internal,
+                )),
+                Err(_) => Err(browser_error(
+                    "BROWSER_PROCESS_KILL_TIMEOUT",
+                    "Forced Chromium termination exceeded the configured cleanup timeout",
+                    ErrorCategory::ResourceExhausted,
+                )),
+            }
+        }
+        Err(_) => match timeout(cleanup_timeout, browser.kill()).await {
+            Ok(Some(Ok(()))) => Ok(true),
+            Ok(Some(Err(error))) => Err(browser_error(
+                "BROWSER_PROCESS_KILL_FAILED",
+                &error.to_string(),
+                ErrorCategory::Internal,
+            )),
+            Ok(None) => Ok(false),
+            Err(_) => Err(browser_error(
+                "BROWSER_PROCESS_KILL_TIMEOUT",
+                "Chromium did not exit before the cleanup deadline and forced termination did not finish in time",
+                ErrorCategory::ResourceExhausted,
+            )),
+        },
+    }
+}
+
 async fn shutdown_browser(
     browser: &mut Browser,
     handler_task: &mut tokio::task::JoinHandle<()>,
     cleanup_timeout: Duration,
 ) -> Result<(), VrtCError> {
     let close_result = timeout(cleanup_timeout, browser.close()).await;
+    let process_result = reap_browser_process(browser, cleanup_timeout).await;
     let handler_stopped = stop_browser_handler(handler_task, cleanup_timeout).await;
 
     match close_result {
         Err(_) => Err(browser_error(
             "BROWSER_CLEANUP_TIMEOUT",
-            "Closing the browser exceeded the configured cleanup timeout",
+            "Closing the browser exceeded the configured cleanup timeout; process reaping was still attempted",
             ErrorCategory::ResourceExhausted,
         )),
         Ok(Err(error)) => Err(browser_error(
             "BROWSER_CLEANUP_FAILED",
-            &error.to_string(),
+            &format!("Closing Chromium failed; process reaping was still attempted: {error}"),
             ErrorCategory::Internal,
         )),
-        Ok(Ok(_)) if !handler_stopped => Err(browser_error(
-            "BROWSER_HANDLER_STOP_TIMEOUT",
-            "Browser event handler did not stop within the configured cleanup timeout",
-            ErrorCategory::ResourceExhausted,
-        )),
-        Ok(Ok(_)) => Ok(()),
+        Ok(Ok(_)) => match process_result {
+            Err(error) => Err(error),
+            Ok(true) => Err(browser_error(
+                "BROWSER_PROCESS_FORCIBLY_TERMINATED",
+                "Chromium did not exit after graceful close and required forced termination",
+                ErrorCategory::ResourceExhausted,
+            )),
+            Ok(false) if !handler_stopped => Err(browser_error(
+                "BROWSER_HANDLER_STOP_TIMEOUT",
+                "Browser event handler did not stop within the configured cleanup timeout",
+                ErrorCategory::ResourceExhausted,
+            )),
+            Ok(false) => Ok(()),
+        },
     }
 }
 
