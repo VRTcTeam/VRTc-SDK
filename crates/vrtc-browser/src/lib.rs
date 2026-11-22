@@ -414,30 +414,30 @@ async fn shutdown_browser(
     let process_result = reap_browser_process(browser, cleanup_timeout).await;
     let handler_stopped = stop_browser_handler(handler_task, cleanup_timeout).await;
 
-    match close_result {
-        Err(_) => Err(browser_error(
-            "BROWSER_CLEANUP_TIMEOUT",
-            "Closing the browser exceeded the configured cleanup timeout; process reaping was still attempted",
-            ErrorCategory::ResourceExhausted,
-        )),
-        Ok(Err(error)) => Err(browser_error(
-            "BROWSER_CLEANUP_FAILED",
-            &format!("Closing Chromium failed; process reaping was still attempted: {error}"),
-            ErrorCategory::Internal,
-        )),
-        Ok(Ok(_)) => match process_result {
-            Err(error) => Err(error),
-            Ok(true) => Err(browser_error(
+    match process_result {
+        Err(error) => Err(error),
+        Ok(forcibly_terminated) => match close_result {
+            Err(_) => Err(browser_error(
+                "BROWSER_CLEANUP_TIMEOUT",
+                "Closing the browser exceeded the configured cleanup timeout; process reaping was still attempted",
+                ErrorCategory::ResourceExhausted,
+            )),
+            Ok(Err(error)) => Err(browser_error(
+                "BROWSER_CLEANUP_FAILED",
+                &format!("Closing Chromium failed; process reaping was still attempted: {error}"),
+                ErrorCategory::Internal,
+            )),
+            Ok(Ok(_)) if forcibly_terminated => Err(browser_error(
                 "BROWSER_PROCESS_FORCIBLY_TERMINATED",
                 "Chromium did not exit after graceful close and required forced termination",
                 ErrorCategory::ResourceExhausted,
             )),
-            Ok(false) if !handler_stopped => Err(browser_error(
+            Ok(Ok(_)) if !handler_stopped => Err(browser_error(
                 "BROWSER_HANDLER_STOP_TIMEOUT",
                 "Browser event handler did not stop within the configured cleanup timeout",
                 ErrorCategory::ResourceExhausted,
             )),
-            Ok(false) => Ok(()),
+            Ok(Ok(_)) => Ok(()),
         },
     }
 }
