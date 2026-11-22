@@ -268,3 +268,9 @@ Browser renderer shutdown is now bounded by the configured per-operation timeout
 Browser rendering now shares one operation deadline across render-capacity admission, Chromium launch, page creation, JavaScript policy application, snapshot rendering, DOM extraction, and title retrieval. The configured `operation_timeout_ms` is a total active-operation budget rather than a fresh timeout granted to every stage. Browser shutdown still receives a separate bounded cleanup grace period after success or failure, so cleanup is attempted even when the operation deadline expires.
 
 - [M29 Browser Render Operation Deadline Specification](docs/specifications/m29-browser-operation-deadline.md)
+
+## Cancellation-Safe Browser Render Supervision (M30)
+
+Browser rendering now runs in an owned Tokio task and returns results through a oneshot channel. If the caller cancels by dropping its render future, the worker retains ownership of the browser lifecycle, render-capacity permit, M29 operation deadline, and M28 bounded cleanup path. This prevents ordinary caller cancellation from bypassing cleanup. It does not guarantee cleanup after runtime shutdown or process termination, and it does not replace operating-system child-process reaping.
+
+- [M30 Browser Cancellation Supervision Specification](docs/specifications/m30-browser-cancellation-supervision.md)
