@@ -6,12 +6,12 @@ Ensure that cancelling the caller's render future does not immediately drop the 
 
 ## Implementation
 
-- `BrowserRenderer::render` clones only the immutable renderer configuration and shared policy/capacity handles needed by an owned worker.
+- `BrowserRenderer::render` validates input and URL policy, then acquires a render-capacity permit before spawning an owned worker. Requests waiting for capacity remain in the caller future, so they do not create detached Tokio tasks.
 - The worker runs in a Tokio task and owns the complete `render_inner` future, including the browser handle and event-handler task.
 - The caller receives the result through a Tokio oneshot receiver. Dropping the caller future drops only that receiver; it does not cancel the worker task.
 - The worker retains M29's single active-operation deadline and M28's bounded browser-close and handler-stop cleanup.
 - If the worker terminates without sending a result, the caller receives the stable `BROWSER_RENDER_SUPERVISOR_FAILED` error.
-- The render-capacity permit remains owned by the worker until its operation and cleanup finish, preventing cancellation from prematurely releasing admission capacity while browser work is still active.
+- The acquired render-capacity permit moves into the worker and remains held until its operation and cleanup finish. Consequently, the number of detached render supervisors is bounded by `max_concurrent_renders`, and caller cancellation cannot prematurely release capacity.
 
 ## Compatibility and safety
 
@@ -23,11 +23,12 @@ Ensure that cancelling the caller's render future does not immediately drop the 
 
 ## Acceptance criteria
 
-1. Dropping the caller's oneshot receiver does not cancel the owned operation task.
-2. The worker retains the render permit until its bounded operation and cleanup finish.
-3. The existing M28 cleanup path remains responsible for browser close and event-handler termination.
-4. A worker that exits without returning a value maps to a stable structured error.
-5. Rust formatting, Clippy, workspace tests, SDK checks, repository/specification checks, CodeQL, and Dependency Review pass before merge.
+1. Requests waiting for capacity do not spawn supervised tasks.
+2. Dropping the caller's oneshot receiver does not cancel the owned operation task.
+3. The worker retains the render permit until its bounded operation and cleanup finish.
+4. The existing M28 cleanup path remains responsible for browser close and event-handler termination.
+5. A worker that exits without returning a value maps to a stable structured error.
+6. Rust formatting, Clippy, workspace tests, SDK checks, repository/specification checks, CodeQL, and Dependency Review pass before merge.
 
 ## Explicit limitations and next boundary
 
