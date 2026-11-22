@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::emulation::SetScriptExecutionDisabledParams;
 use futures::StreamExt;
-use tokio::sync::Semaphore;
+use tokio::sync::{oneshot, Semaphore};
 use tokio::time::{timeout, timeout_at};
 use vrtc_core::{ErrorCategory, VrtCError};
 use vrtc_policy::{PolicyEngine, PolicyOutcome, PolicyRequest};
@@ -87,7 +87,29 @@ impl BrowserRenderer {
         })
     }
 
+    /// Render in an owned task so dropping the caller future cannot drop the
+    /// browser lifecycle before its bounded cleanup path runs.
     pub async fn render(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
+        let worker = Self {
+            config: self.config.clone(),
+            policy: Arc::clone(&self.policy),
+            render_slots: Arc::clone(&self.render_slots),
+        };
+        spawn_supervised(async move { worker.render_inner(request).await })
+            .await
+            .map_err(|_| {
+                browser_error(
+                    "BROWSER_RENDER_SUPERVISOR_FAILED",
+                    "The supervised browser render task ended without returning a result",
+                    ErrorCategory::Internal,
+                )
+            })?
+    }
+
+    async fn render_inner(
+        &self,
+        request: BrowserRenderRequest,
+    ) -> Result<RenderedPage, VrtCError> {
         if request.html.len() > self.config.max_html_bytes {
             return Err(browser_error(
                 "BROWSER_INPUT_TOO_LARGE",
@@ -294,6 +316,23 @@ impl BrowserRenderer {
             (Ok(page), Ok(())) => Ok(page),
         }
     }
+}
+
+/// Run an operation in a task that owns its future independently of the
+/// caller's response receiver. The browser render worker has an absolute
+/// operation deadline and bounded cleanup, so it can finish safely if the
+/// caller cancels by dropping this receiver.
+fn spawn_supervised<T, F>(operation: F) -> oneshot::Receiver<T>
+where
+    T: Send + 'static,
+    F: Future<Output = T> + Send + 'static,
+{
+    let (result_tx, result_rx) = oneshot::channel();
+    tokio::spawn(async move {
+        let result = operation.await;
+        let _ = result_tx.send(result);
+    });
+    result_rx
 }
 
 /// Close the browser and stop its event handler without allowing cleanup to
@@ -524,6 +563,22 @@ mod tests {
             Arc::new(PolicyEngine::new(Default::default()).unwrap()),
         )
         .unwrap()
+    }
+
+    #[tokio::test]
+    async fn supervised_operation_finishes_after_caller_drops_receiver() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let completed = Arc::new(AtomicBool::new(false));
+        let worker_completed = Arc::clone(&completed);
+        let receiver = spawn_supervised(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            worker_completed.store(true, Ordering::SeqCst);
+        });
+
+        drop(receiver);
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert!(completed.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
