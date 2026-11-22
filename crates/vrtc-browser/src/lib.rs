@@ -160,23 +160,22 @@ impl BrowserRenderer {
             )
         })?;
 
-        let (mut browser, mut handler) =
-            timeout_at(deadline, Browser::launch(browser_config))
-                .await
-                .map_err(|_| {
-                    browser_error(
-                        "BROWSER_LAUNCH_TIMEOUT",
-                        "Browser launch exceeded the configured timeout",
-                        ErrorCategory::ResourceExhausted,
-                    )
-                })?
-                .map_err(|error| {
-                    browser_error(
-                        "BROWSER_LAUNCH_FAILED",
-                        &error.to_string(),
-                        ErrorCategory::Internal,
-                    )
-                })?;
+        let (mut browser, mut handler) = timeout_at(deadline, Browser::launch(browser_config))
+            .await
+            .map_err(|_| {
+                browser_error(
+                    "BROWSER_LAUNCH_TIMEOUT",
+                    "Browser launch exceeded the configured timeout",
+                    ErrorCategory::ResourceExhausted,
+                )
+            })?
+            .map_err(|error| {
+                browser_error(
+                    "BROWSER_LAUNCH_FAILED",
+                    &error.to_string(),
+                    ErrorCategory::Internal,
+                )
+            })?;
 
         let mut handler_task = tokio::spawn(async move {
             while let Some(event) = handler.next().await {
