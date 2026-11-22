@@ -12,7 +12,7 @@ Apply the Network Engine's configured minimum TLS version to the actual HTTP tra
 
 - Map `TlsMinimumVersion::Tls12` to reqwest's `tls::Version::TLS_1_2`.
 - Map `TlsMinimumVersion::Tls13` to reqwest's `tls::Version::TLS_1_3`.
-- Apply the mapped value through `ClientBuilder::tls_version_min` when constructing each per-hop HTTP client.
+- Apply the mapped value through `ClientBuilder::min_tls_version` when constructing each per-hop HTTP client.
 - Rebuild the client after every redirect and apply the newly planned route's TLS policy for that hop.
 - Keep reqwest's rustls backend and normal certificate-chain and hostname verification enabled.
 - Add focused tests for both enum mappings and successful construction of clients with each supported minimum.
