@@ -8,13 +8,13 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::cdp::browser_protocol::emulation::SetScriptExecutionDisabledParams;
 use futures::StreamExt;
-use tokio::sync::{oneshot, Semaphore};
+use tokio::sync::{oneshot, watch, Semaphore};
 use tokio::time::{timeout, timeout_at};
 use vrtc_core::{ErrorCategory, VrtCError};
 use vrtc_policy::{PolicyEngine, PolicyOutcome, PolicyRequest};
@@ -63,6 +63,7 @@ pub struct BrowserRenderer {
     config: BrowserRenderConfig,
     policy: Arc<PolicyEngine>,
     render_slots: Arc<Semaphore>,
+    supervisor: Arc<BrowserSupervisor>,
 }
 
 impl BrowserRenderer {
@@ -84,12 +85,22 @@ impl BrowserRenderer {
             config,
             policy,
             render_slots,
+            supervisor: Arc::new(BrowserSupervisor::new()),
         })
+    }
+
+    /// Stop new browser work and wait for all admitted render supervisors.
+    ///
+    /// Hosts must await this method before shutting down their Tokio runtime.
+    /// It is idempotent; after it begins, this renderer permanently rejects new work.
+    pub async fn shutdown(&self) -> Result<(), VrtCError> {
+        self.supervisor.shutdown().await
     }
 
     /// Admit work before spawning so queued requests do not create an
     /// unbounded number of detached Tokio tasks.
     pub async fn render(&self, request: BrowserRenderRequest) -> Result<RenderedPage, VrtCError> {
+        self.supervisor.ensure_open()?;
         let source_url = self.validate_request(&request)?;
 
         // One deadline covers queue admission, launch, page creation, and rendering.
@@ -123,8 +134,9 @@ impl BrowserRenderer {
             config: self.config.clone(),
             policy: Arc::clone(&self.policy),
             render_slots: Arc::clone(&self.render_slots),
+            supervisor: Arc::clone(&self.supervisor),
         };
-        spawn_supervised(async move {
+        Arc::clone(&self.supervisor).spawn(async move {
             worker
                 .render_inner(request, source_url, deadline, render_permit)
                 .await
@@ -330,6 +342,131 @@ impl BrowserRenderer {
             (Ok(_), Err(cleanup_error)) => Err(cleanup_error),
             (Ok(page), Ok(())) => Ok(page),
         }
+    }
+}
+
+/// Tracks admitted browser workers so explicit shutdown can close admission
+/// and wait for every worker, including workers whose caller was cancelled.
+struct BrowserSupervisor {
+    state: Mutex<SupervisorState>,
+    active_tx: watch::Sender<usize>,
+}
+
+struct SupervisorState {
+    closed: bool,
+    active: usize,
+}
+
+struct ActiveWorkerGuard {
+    supervisor: Arc<BrowserSupervisor>,
+}
+
+impl BrowserSupervisor {
+    fn new() -> Self {
+        let (active_tx, _) = watch::channel(0);
+        Self {
+            state: Mutex::new(SupervisorState {
+                closed: false,
+                active: 0,
+            }),
+            active_tx,
+        }
+    }
+
+    fn ensure_open(&self) -> Result<(), VrtCError> {
+        let state = self.state.lock().map_err(|_| {
+            browser_error(
+                "BROWSER_SUPERVISOR_LOCK_POISONED",
+                "Browser supervisor state is unavailable",
+                ErrorCategory::Internal,
+            )
+        })?;
+        if state.closed {
+            return Err(browser_error(
+                "BROWSER_RENDERER_SHUTTING_DOWN",
+                "Browser renderer is shutting down and no longer accepts work",
+                ErrorCategory::ResourceExhausted,
+            ));
+        }
+        Ok(())
+    }
+
+    fn spawn<T, F>(self: Arc<Self>, operation: F) -> Result<oneshot::Receiver<T>, VrtCError>
+    where
+        T: Send + 'static,
+        F: Future<Output = T> + Send + 'static,
+    {
+        {
+            let mut state = self.state.lock().map_err(|_| {
+                browser_error(
+                    "BROWSER_SUPERVISOR_LOCK_POISONED",
+                    "Browser supervisor state is unavailable",
+                    ErrorCategory::Internal,
+                )
+            })?;
+            if state.closed {
+                return Err(browser_error(
+                    "BROWSER_RENDERER_SHUTTING_DOWN",
+                    "Browser renderer is shutting down and no longer accepts work",
+                    ErrorCategory::ResourceExhausted,
+                ));
+            }
+            state.active += 1;
+            self.active_tx.send_replace(state.active);
+        }
+
+        let (result_tx, result_rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let _active_guard = ActiveWorkerGuard {
+                supervisor: Arc::clone(&self),
+            };
+            let result = operation.await;
+            let _ = result_tx.send(result);
+        });
+        Ok(result_rx)
+    }
+
+    async fn shutdown(&self) -> Result<(), VrtCError> {
+        // Subscribe before closing admission so no completion notification can
+        // be lost between observing the active count and awaiting a change.
+        let mut active_rx = self.active_tx.subscribe();
+        {
+            let mut state = self.state.lock().map_err(|_| {
+                browser_error(
+                    "BROWSER_SUPERVISOR_LOCK_POISONED",
+                    "Browser supervisor state is unavailable",
+                    ErrorCategory::Internal,
+                )
+            })?;
+            state.closed = true;
+            self.active_tx.send_replace(state.active);
+        }
+
+        loop {
+            if *active_rx.borrow_and_update() == 0 {
+                return Ok(());
+            }
+            active_rx.changed().await.map_err(|_| {
+                browser_error(
+                    "BROWSER_SUPERVISOR_SIGNAL_CLOSED",
+                    "Browser supervisor completion signal closed unexpectedly",
+                    ErrorCategory::Internal,
+                )
+            })?;
+        }
+    }
+
+    fn worker_finished(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            state.active = state.active.saturating_sub(1);
+            self.active_tx.send_replace(state.active);
+        }
+    }
+}
+
+impl Drop for ActiveWorkerGuard {
+    fn drop(&mut self) {
+        self.supervisor.worker_finished();
     }
 }
 
@@ -653,6 +790,48 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(20)).await;
         assert!(completed.load(Ordering::SeqCst));
         assert_eq!(worker_slots.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn supervisor_shutdown_waits_for_cancelled_workers_and_closes_admission() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let supervisor = Arc::new(BrowserSupervisor::new());
+        let completed = Arc::new(AtomicBool::new(false));
+        let worker_completed = Arc::clone(&completed);
+        let receiver = Arc::clone(&supervisor)
+            .spawn(async move {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                worker_completed.store(true, Ordering::SeqCst);
+            })
+            .unwrap();
+        drop(receiver);
+
+        supervisor.shutdown().await.unwrap();
+        assert!(completed.load(Ordering::SeqCst));
+        let rejected = Arc::clone(&supervisor).spawn(async {});
+        assert!(rejected.is_err());
+        assert_eq!(rejected.unwrap_err().to_string().is_empty(), false);
+    }
+
+    #[tokio::test]
+    async fn renderer_shutdown_is_idempotent_and_rejects_new_renders() {
+        let renderer = renderer();
+        renderer.shutdown().await.unwrap();
+        renderer.shutdown().await.unwrap();
+
+        let error = renderer
+            .render(BrowserRenderRequest {
+                source_url: "https://example.org".to_owned(),
+                origin_url: None,
+                html: "<h1>closed</h1>".to_owned(),
+                is_crawl: false,
+                crawl_depth: 0,
+                robots_allowed: None,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(error.code, "BROWSER_RENDERER_SHUTTING_DOWN");
     }
 
     #[tokio::test]
