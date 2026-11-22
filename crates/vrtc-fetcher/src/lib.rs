@@ -136,7 +136,7 @@ impl FetchEngine {
                 .timeout(self.config.timeout)
                 .redirect(Policy::none())
                 .no_proxy()
-                .tls_version_min(reqwest_tls_version(route.tls))
+                .min_tls_version(reqwest_tls_version(route.tls))
                 .user_agent(&self.config.user_agent)
                 .resolve(&host, address)
                 .build()
@@ -381,7 +381,7 @@ mod tests {
     fn reqwest_client_accepts_both_supported_tls_minimums() {
         for minimum in [TlsMinimumVersion::Tls12, TlsMinimumVersion::Tls13] {
             Client::builder()
-                .tls_version_min(reqwest_tls_version(minimum))
+                .min_tls_version(reqwest_tls_version(minimum))
                 .build()
                 .expect("configured rustls TLS minimum should build");
         }
