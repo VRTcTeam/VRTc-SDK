@@ -18,7 +18,7 @@ A matching proxy route is rejected with `PROXY_TRANSPORT_NOT_AVAILABLE` until a 
 
 ## TLS boundary
 
-The HTTP client continues to use reqwest's rustls TLS backend with normal certificate and hostname verification. The Network Engine validates the configured TLS policy before planning HTTPS routes. A configurable minimum TLS version has not yet been applied to the reqwest connector; that transport-level setting remains a follow-up.
+The HTTP client uses reqwest's rustls TLS backend with normal certificate and hostname verification. At the M24 baseline, the Network Engine validated TLS policy before planning HTTPS routes, but the configured minimum version was not yet applied to the connector. M33 closes that specific gap by applying the route's TLS minimum to each reqwest client; see [M33 Fetcher TLS Minimum Enforcement](m33-fetcher-tls-minimum-enforcement.md).
 
 ## Non-goals
 

@@ -15,7 +15,7 @@ use reqwest::redirect::Policy;
 use reqwest::{Client, StatusCode};
 use url::Url;
 use vrtc_core::{ErrorCategory, VrtCError};
-use vrtc_network::{NetworkConfig, NetworkEngine, RouteMode};
+use vrtc_network::{NetworkConfig, NetworkEngine, RouteMode, TlsMinimumVersion};
 
 #[derive(Debug, Clone)]
 pub struct FetchConfig {
@@ -136,6 +136,7 @@ impl FetchEngine {
                 .timeout(self.config.timeout)
                 .redirect(Policy::none())
                 .no_proxy()
+                .min_tls_version(reqwest_tls_version(route.tls))
                 .user_agent(&self.config.user_agent)
                 .resolve(&host, address)
                 .build()
@@ -272,6 +273,13 @@ impl FetchEngine {
     }
 }
 
+fn reqwest_tls_version(minimum: TlsMinimumVersion) -> reqwest::tls::Version {
+    match minimum {
+        TlsMinimumVersion::Tls12 => reqwest::tls::Version::TLS_1_2,
+        TlsMinimumVersion::Tls13 => reqwest::tls::Version::TLS_1_3,
+    }
+}
+
 fn validate_url(raw_url: &str) -> Result<Url, VrtCError> {
     let url = Url::parse(raw_url).map_err(|_| {
         fetch_error(
@@ -355,6 +363,28 @@ mod tests {
     fn rejects_non_standard_ports() {
         assert!(validate_url("https://example.org:8443/").is_err());
         assert!(validate_url("http://example.org/").is_ok());
+    }
+
+    #[test]
+    fn network_tls_minimum_maps_to_reqwest_tls_versions() {
+        assert_eq!(
+            reqwest_tls_version(TlsMinimumVersion::Tls12),
+            reqwest::tls::Version::TLS_1_2
+        );
+        assert_eq!(
+            reqwest_tls_version(TlsMinimumVersion::Tls13),
+            reqwest::tls::Version::TLS_1_3
+        );
+    }
+
+    #[test]
+    fn reqwest_client_accepts_both_supported_tls_minimums() {
+        for minimum in [TlsMinimumVersion::Tls12, TlsMinimumVersion::Tls13] {
+            Client::builder()
+                .min_tls_version(reqwest_tls_version(minimum))
+                .build()
+                .expect("configured rustls TLS minimum should build");
+        }
     }
 
     #[test]
