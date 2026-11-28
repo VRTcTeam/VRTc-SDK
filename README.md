@@ -295,3 +295,7 @@ The HTTP Fetcher now applies the shared Network Engine's minimum TLS version to 
 ## Fetcher TLS Handshake Integration Tests (M34)
 
 The Fetcher now tests the reqwest TLS policy against local OpenSSL servers rather than checking only configuration construction. The focused test verifies TLS 1.2 acceptance under a TLS 1.2 minimum, rejection of a TLS 1.2-only server under a TLS 1.3 minimum, and TLS 1.3 acceptance under a TLS 1.3 minimum. It creates a temporary test CA and localhost certificate at runtime and keeps all traffic on loopback; production DNS and public-address policy are unchanged. Running this focused test requires the OpenSSL command-line tools. See [M34 Fetcher TLS Handshake Integration Tests](docs/specifications/m34-fetcher-tls-handshake-integration-tests.md).
+
+## Fetcher Certificate & Hostname Verification Tests (M35)
+
+The Fetcher TLS integration tests also verify that a server certificate signed by an untrusted test CA is rejected and that a trusted certificate for `localhost` cannot authenticate a different hostname. The tests use loopback-only OpenSSL servers and explicitly trust the generated test CA only in the positive-control cases; production certificate and hostname verification remain enabled and unchanged. See [M35 Fetcher Certificate & Hostname Verification Tests](docs/specifications/m35-fetcher-certificate-verification-tests.md).

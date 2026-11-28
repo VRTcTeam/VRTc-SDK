@@ -517,31 +517,44 @@ mod tests {
         }
     }
 
+    async fn request_from_test_server_with_identity(
+        server: &TestTlsServer,
+        minimum: TlsMinimumVersion,
+        hostname: &str,
+        trust_test_ca: bool,
+    ) -> Result<StatusCode, reqwest::Error> {
+        let builder = http_client_builder(
+            Duration::from_secs(5),
+            "VRTc-Fetcher-TLS-Test/0.1",
+            hostname,
+            server.address,
+            minimum,
+        );
+
+        let builder = if trust_test_ca {
+            let certificate = reqwest::Certificate::from_pem(
+                &fs::read(&server.root_certificate_path)
+                    .expect("test root certificate should be readable"),
+            )
+            .expect("test certificate should parse");
+            builder.add_root_certificate(certificate)
+        } else {
+            builder
+        };
+
+        let client = builder.build().expect("test client should build");
+        client
+            .get(format!("https://{hostname}:{}/", server.address.port()))
+            .send()
+            .await
+            .map(|response| response.status())
+    }
+
     async fn request_from_test_server(
         server: &TestTlsServer,
         minimum: TlsMinimumVersion,
     ) -> Result<StatusCode, reqwest::Error> {
-        let certificate = reqwest::Certificate::from_pem(
-            &fs::read(&server.root_certificate_path)
-                .expect("test root certificate should be readable"),
-        )
-        .expect("test certificate should parse");
-        let client = http_client_builder(
-            Duration::from_secs(5),
-            "VRTc-Fetcher-TLS-Test/0.1",
-            "localhost",
-            server.address,
-            minimum,
-        )
-        .add_root_certificate(certificate)
-        .build()
-        .expect("test client should build");
-
-        client
-            .get(format!("https://localhost:{}/", server.address.port()))
-            .send()
-            .await
-            .map(|response| response.status())
+        request_from_test_server_with_identity(server, minimum, "localhost", true).await
     }
 
     #[test]
@@ -606,6 +619,36 @@ mod tests {
                 .expect("TLS 1.3 handshake should succeed"),
             StatusCode::OK,
             "a TLS 1.3 minimum should accept a TLS 1.3 server"
+        );
+    }
+
+    #[tokio::test]
+    async fn certificate_and_hostname_validation_remain_enforced() {
+        let untrusted_server = start_tls_server("-tls1_3");
+        assert!(
+            request_from_test_server_with_identity(
+                &untrusted_server,
+                TlsMinimumVersion::Tls13,
+                "localhost",
+                false,
+            )
+            .await
+            .is_err(),
+            "a valid TLS certificate from an untrusted test CA must be rejected"
+        );
+        drop(untrusted_server);
+
+        let mismatched_hostname_server = start_tls_server("-tls1_3");
+        assert!(
+            request_from_test_server_with_identity(
+                &mismatched_hostname_server,
+                TlsMinimumVersion::Tls13,
+                "wrong.localhost",
+                true,
+            )
+            .await
+            .is_err(),
+            "a trusted certificate for localhost must not authenticate another hostname"
         );
     }
 
