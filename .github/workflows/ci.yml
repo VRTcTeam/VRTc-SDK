@@ -76,6 +76,16 @@ jobs:
           test -s docs/specifications/m22-native-browser-rendering.md
           test -s docs/specifications/m23-native-network-infrastructure.md
           test -s docs/specifications/m24-fetcher-network-integration.md
+          test -s docs/specifications/m25-technology-provider-research-framework.md
+          test -s docs/specifications/m26-browser-engine-abstraction.md
+          test -s docs/specifications/m27-browser-render-capacity.md
+          test -s docs/specifications/m28-browser-cleanup-deadlines.md
+          test -s docs/specifications/m29-browser-operation-deadline.md
+          test -s docs/specifications/m30-browser-cancellation-supervision.md
+          test -s docs/specifications/m31-chromium-process-reaping.md
+          test -s docs/specifications/m32-browser-supervisor-shutdown.md
+          test -s docs/specifications/m33-fetcher-tls-minimum-enforcement.md
+          test -s docs/specifications/m34-fetcher-tls-handshake-integration-tests.md
           test -s sdks/typescript/src/index.ts
           test -s sdks/python/src/vrtc_sdk/client.py
 
@@ -102,6 +112,9 @@ jobs:
 
       - name: Run Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Verify OpenSSL test prerequisite
+        run: openssl version
 
       - name: Run tests
         run: cargo test --workspace --all-features

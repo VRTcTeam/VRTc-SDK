@@ -132,22 +132,22 @@ impl FetchEngine {
                 ));
             }
             let (host, address) = self.resolve_public_endpoint(&current).await?;
-            let client = Client::builder()
-                .timeout(self.config.timeout)
-                .redirect(Policy::none())
-                .no_proxy()
-                .min_tls_version(reqwest_tls_version(route.tls))
-                .user_agent(&self.config.user_agent)
-                .resolve(&host, address)
-                .build()
-                .map_err(|_| {
-                    fetch_error(
-                        "HTTP_CLIENT_INIT_FAILED",
-                        "The HTTP client could not be initialized",
-                        ErrorCategory::Internal,
-                        true,
-                    )
-                })?;
+            let client = http_client_builder(
+                self.config.timeout,
+                &self.config.user_agent,
+                &host,
+                address,
+                route.tls,
+            )
+            .build()
+            .map_err(|_| {
+                fetch_error(
+                    "HTTP_CLIENT_INIT_FAILED",
+                    "The HTTP client could not be initialized",
+                    ErrorCategory::Internal,
+                    true,
+                )
+            })?;
 
             let response = client
                 .get(current.clone())
@@ -273,6 +273,22 @@ impl FetchEngine {
     }
 }
 
+fn http_client_builder(
+    timeout: Duration,
+    user_agent: &str,
+    host: &str,
+    address: SocketAddr,
+    tls_minimum: TlsMinimumVersion,
+) -> reqwest::ClientBuilder {
+    Client::builder()
+        .timeout(timeout)
+        .redirect(Policy::none())
+        .no_proxy()
+        .min_tls_version(reqwest_tls_version(tls_minimum))
+        .user_agent(user_agent)
+        .resolve(host, address)
+}
+
 fn reqwest_tls_version(minimum: TlsMinimumVersion) -> reqwest::tls::Version {
     match minimum {
         TlsMinimumVersion::Tls12 => reqwest::tls::Version::TLS_1_2,
@@ -352,6 +368,181 @@ fn fetch_error(code: &str, message: &str, category: ErrorCategory, retryable: bo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::net::{TcpListener, TcpStream};
+    use std::path::PathBuf;
+    use std::process::{Child, Command, Stdio};
+    use std::thread;
+    use std::time::UNIX_EPOCH;
+
+    struct TestTlsServer {
+        child: Child,
+        address: SocketAddr,
+        root_certificate_path: PathBuf,
+        directory: PathBuf,
+    }
+
+    impl Drop for TestTlsServer {
+        fn drop(&mut self) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+            let _ = fs::remove_dir_all(&self.directory);
+        }
+    }
+
+    fn start_tls_server(version_flag: &str) -> TestTlsServer {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after the Unix epoch")
+            .as_nanos();
+        let directory =
+            std::env::temp_dir().join(format!("vrtc-fetcher-tls-{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&directory).expect("test TLS directory should be created");
+
+        let root_certificate_path = directory.join("test-ca.pem");
+        let root_key_path = directory.join("test-ca-key.pem");
+        let server_certificate_path = directory.join("localhost-cert.pem");
+        let server_key_path = directory.join("localhost-key.pem");
+        let server_request_path = directory.join("localhost.csr");
+        let extensions_path = directory.join("localhost.ext");
+
+        let root = Command::new("openssl")
+            .args(["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout"])
+            .arg(&root_key_path)
+            .arg("-out")
+            .arg(&root_certificate_path)
+            .args([
+                "-days",
+                "2",
+                "-sha256",
+                "-subj",
+                "/CN=VRTc-Test-CA",
+                "-addext",
+                "basicConstraints=critical,CA:TRUE",
+                "-addext",
+                "keyUsage=critical,keyCertSign,cRLSign",
+            ])
+            .output()
+            .expect("OpenSSL CLI is required for local TLS handshake tests");
+        assert!(
+            root.status.success(),
+            "OpenSSL could not generate the test CA: {}",
+            String::from_utf8_lossy(&root.stderr)
+        );
+
+        let request = Command::new("openssl")
+            .args(["req", "-new", "-newkey", "rsa:2048", "-nodes", "-keyout"])
+            .arg(&server_key_path)
+            .arg("-out")
+            .arg(&server_request_path)
+            .args(["-subj", "/CN=localhost"])
+            .output()
+            .expect("OpenSSL should generate the test server key");
+        assert!(
+            request.status.success(),
+            "OpenSSL could not generate the test server request: {}",
+            String::from_utf8_lossy(&request.stderr)
+        );
+
+        fs::write(
+            &extensions_path,
+            "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost\n",
+        )
+        .expect("test certificate extensions should be written");
+        let signed = Command::new("openssl")
+            .arg("x509")
+            .arg("-req")
+            .arg("-in")
+            .arg(&server_request_path)
+            .arg("-CA")
+            .arg(&root_certificate_path)
+            .arg("-CAkey")
+            .arg(&root_key_path)
+            .arg("-CAcreateserial")
+            .arg("-out")
+            .arg(&server_certificate_path)
+            .args(["-days", "2", "-sha256", "-extfile"])
+            .arg(&extensions_path)
+            .output()
+            .expect("OpenSSL should sign the test server certificate");
+        assert!(
+            signed.status.success(),
+            "OpenSSL could not sign the test server certificate: {}",
+            String::from_utf8_lossy(&signed.stderr)
+        );
+
+        let listener =
+            TcpListener::bind(("127.0.0.1", 0)).expect("test server port should be available");
+        let address = listener
+            .local_addr()
+            .expect("test server address should be available");
+        drop(listener);
+
+        let mut child = Command::new("openssl")
+            .arg("s_server")
+            .arg("-accept")
+            .arg(format!("127.0.0.1:{}", address.port()))
+            .arg("-cert")
+            .arg(&server_certificate_path)
+            .arg("-key")
+            .arg(&server_key_path)
+            .args(["-www", "-quiet", version_flag, "-naccept", "2"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("OpenSSL TLS test server should start");
+
+        let mut ready = false;
+        for _ in 0..100 {
+            if child
+                .try_wait()
+                .expect("test server status should be readable")
+                .is_some()
+            {
+                panic!("OpenSSL TLS test server exited before accepting connections");
+            }
+            if TcpStream::connect(address).is_ok() {
+                ready = true;
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert!(ready, "OpenSSL TLS test server did not become ready");
+
+        TestTlsServer {
+            child,
+            address,
+            root_certificate_path,
+            directory,
+        }
+    }
+
+    async fn request_from_test_server(
+        server: &TestTlsServer,
+        minimum: TlsMinimumVersion,
+    ) -> Result<StatusCode, reqwest::Error> {
+        let certificate = reqwest::Certificate::from_pem(
+            &fs::read(&server.root_certificate_path)
+                .expect("test root certificate should be readable"),
+        )
+        .expect("test certificate should parse");
+        let client = http_client_builder(
+            Duration::from_secs(5),
+            "VRTc-Fetcher-TLS-Test/0.1",
+            "localhost",
+            server.address,
+            minimum,
+        )
+        .add_root_certificate(certificate)
+        .build()
+        .expect("test client should build");
+
+        client
+            .get(format!("https://localhost:{}/", server.address.port()))
+            .send()
+            .await
+            .map(|response| response.status())
+    }
 
     #[test]
     fn rejects_non_http_schemes_and_embedded_credentials() {
@@ -385,6 +576,37 @@ mod tests {
                 .build()
                 .expect("configured rustls TLS minimum should build");
         }
+    }
+
+    #[tokio::test]
+    async fn minimum_tls_is_enforced_during_real_handshakes() {
+        let tls12_server = start_tls_server("-tls1_2");
+        assert_eq!(
+            request_from_test_server(&tls12_server, TlsMinimumVersion::Tls12)
+                .await
+                .expect("TLS 1.2 handshake should succeed"),
+            StatusCode::OK,
+            "a TLS 1.2 minimum should accept a TLS 1.2 server"
+        );
+        drop(tls12_server);
+
+        let tls12_server = start_tls_server("-tls1_2");
+        assert!(
+            request_from_test_server(&tls12_server, TlsMinimumVersion::Tls13)
+                .await
+                .is_err(),
+            "a TLS 1.3 minimum must reject a TLS 1.2-only server"
+        );
+        drop(tls12_server);
+
+        let tls13_server = start_tls_server("-tls1_3");
+        assert_eq!(
+            request_from_test_server(&tls13_server, TlsMinimumVersion::Tls13)
+                .await
+                .expect("TLS 1.3 handshake should succeed"),
+            StatusCode::OK,
+            "a TLS 1.3 minimum should accept a TLS 1.3 server"
+        );
     }
 
     #[test]
