@@ -86,6 +86,7 @@ jobs:
           test -s docs/specifications/m32-browser-supervisor-shutdown.md
           test -s docs/specifications/m33-fetcher-tls-minimum-enforcement.md
           test -s docs/specifications/m34-fetcher-tls-handshake-integration-tests.md
+          test -s docs/specifications/m35-fetcher-certificate-verification-tests.md
           test -s sdks/typescript/src/index.ts
           test -s sdks/python/src/vrtc_sdk/client.py
 
