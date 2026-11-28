@@ -291,3 +291,7 @@ The browser renderer now exposes an explicit asynchronous shutdown operation. It
 ## Fetcher TLS Minimum Enforcement (M33)
 
 The HTTP Fetcher now applies the shared Network Engine's minimum TLS version to each reqwest client it creates. TLS 1.2 and TLS 1.3 policy values are mapped to reqwest's rustls-backed connector configuration; certificate and hostname verification remain enabled. The policy is rebuilt for every redirect hop. This does not add proxy transport or change the existing public-address DNS pinning boundary. See [M33 Fetcher TLS Minimum Enforcement](docs/specifications/m33-fetcher-tls-minimum-enforcement.md).
+
+## Fetcher TLS Handshake Integration Tests (M34)
+
+The Fetcher now tests the reqwest TLS policy against local OpenSSL servers rather than checking only configuration construction. The focused test verifies TLS 1.2 acceptance under a TLS 1.2 minimum, rejection of a TLS 1.2-only server under a TLS 1.3 minimum, and TLS 1.3 acceptance under a TLS 1.3 minimum. It creates a temporary test CA and localhost certificate at runtime and keeps all traffic on loopback; production DNS and public-address policy are unchanged. Running this focused test requires the OpenSSL command-line tools. See [M34 Fetcher TLS Handshake Integration Tests](docs/specifications/m34-fetcher-tls-handshake-integration-tests.md).
